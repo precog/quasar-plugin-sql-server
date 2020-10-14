@@ -21,5 +21,6 @@ import argonaut._
 trait ConnectionConfig
 
 object ConnectionConfig {
-  implicit val connectionConfigCodecJson: CodecJson[ConnectionConfig] = scala.Predef.???
+  implicit val connectionConfigCodecJson: CodecJson[ConnectionConfig] =
+    CodecJson(_ => Json.jEmptyObject, c => DecodeResult.fail("fixme", c.history))
 }
