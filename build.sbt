@@ -11,6 +11,13 @@ ThisBuild / scmInfo := Some(ScmInfo(
 
 ThisBuild / publishAsOSSProject := true
 
+lazy val quasarVersion =
+  Def.setting[String](managedVersions.value("precog-quasar"))
+
+lazy val quasarPluginJdbcVersion =
+  Def.setting[String](managedVersions.value("precog-quasar-plugin-jdbc"))
+
+
 // Include to also publish a project's tests
 lazy val publishTestsSettings = Seq(
   Test / packageBin / publishArtifact := true)
@@ -18,8 +25,27 @@ lazy val publishTestsSettings = Seq(
 lazy val root = project
   .in(file("."))
   .settings(noPublishSettings)
-  .aggregate(core)
+  .aggregate(core, datasource)
 
 lazy val core = project
   .in(file("core"))
-  .settings(name := "quasar-plugin-sql-server")
+  .settings(
+    name := "quasar-plugin-sql-server",
+    libraryDependencies ++= Seq(
+      "com.precog" %% "quasar-plugin-jdbc" % quasarPluginJdbcVersion.value))
+
+lazy val datasource = project
+  .in(file("datasource"))
+  .dependsOn(core % BothScopes)
+  .settings(
+    name := "quasar-destination-sql-server",
+
+    quasarPluginName := "sql-server",
+    quasarPluginQuasarVersion := quasarVersion.value,
+    quasarPluginDatasourceFqcn := Some("quasar.plugin.sqlserver.datasource.SQLServerDatasourceModule$"),
+
+    quasarPluginDependencies ++= Seq(
+      "com.precog"              %% "quasar-plugin-jdbc" % quasarPluginJdbcVersion.value,
+      "com.microsoft.sqlserver" %  "mssql-jdbc"         % "8.4.1.jre8"
+    ))
+  .enablePlugins(QuasarPlugin)
