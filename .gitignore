@@ -9,3 +9,6 @@ target/
 /scripts/closePR
 /scripts/publishAndTag
 /scripts/readVersion
+
+*.swo
+*.swp

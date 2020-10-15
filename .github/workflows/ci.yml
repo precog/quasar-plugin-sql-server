@@ -84,6 +84,9 @@ jobs:
         if: env.ENCRYPTION_PASSWORD != null
         run: $SBT ++${{ matrix.scala }} transferCommonResources exportSecretsForActions
 
+      - name: Start mssql container
+        run: docker-compose up -d mssql
+
       - name: Check that workflows are up to date
         run: $SBT ++${{ matrix.scala }} githubWorkflowCheck
 
@@ -237,3 +240,4 @@ jobs:
           git config --global user.email "bot@precog.com"
           git config --global user.name "Precog Bot"
           /tmp/sdmerge $GITHUB_REPOSITORY $PR_NUMBER
+

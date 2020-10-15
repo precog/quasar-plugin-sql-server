@@ -1,0 +1,10 @@
+version: "3.7"
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    network_mode: "bridge"
+    ports:
+      - "1433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "<YourStrong@Passw0rd>"
