@@ -60,6 +60,8 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       log: Logger)
       : Resource[F, Either[SQLServerDatasourceModule.InitError, LightweightDatasourceModule.DS[F]]] = {
 
+    log.info(s"in jdbcDatasource")
+
     val discovery = JdbcDiscovery(discoverableTableTypes(log))
 
     SQLServerDatasource(transactor, discovery, log)
