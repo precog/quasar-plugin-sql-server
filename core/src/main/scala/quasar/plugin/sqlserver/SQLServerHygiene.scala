@@ -22,7 +22,7 @@ import quasar.plugin.jdbc.{Hygiene, Hygienic, Ident}
 
 object SQLServerHygiene extends Hygiene {
   final case class HygienicIdent(asIdent: Ident) extends Hygienic {
-    def forSql = s"'${asIdent.asString}'"
+    def forSql = s"${asIdent.asString}"
   }
 
   def hygienicIdent(ident: Ident): HygienicIdent =
