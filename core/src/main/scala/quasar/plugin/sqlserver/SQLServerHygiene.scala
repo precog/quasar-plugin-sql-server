@@ -24,7 +24,7 @@ import cats.implicits._
 
 object SQLServerHygiene extends Hygiene {
   final case class HygienicIdent(asIdent: Ident) extends Hygienic {
-    def forSql = asIdent.asString.split(".").map('[' + _ + ']').toList.intercalate(".")
+    def forSql = asIdent.asString.split('.').map('[' + _ + ']').toList.intercalate(".")
   }
 
   def hygienicIdent(ident: Ident): HygienicIdent =
