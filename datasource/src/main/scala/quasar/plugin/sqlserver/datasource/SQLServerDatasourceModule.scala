@@ -61,8 +61,6 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       log: Logger)
       : Resource[F, Either[SQLServerDatasourceModule.InitError, LightweightDatasourceModule.DS[F]]] = {
 
-    log.info(s"in jdbcDatasource")
-
     val discovery = JdbcDiscovery(discoverableTableTypes(log))
 
     SQLServerDatasource(transactor, discovery, log)
@@ -70,7 +68,7 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       .pure[Resource[F, ?]]
   }
 
-  // FIXME
+  // TODO is this correct?
   def discoverableTableTypes(log: Logger): Option[ConnectionIO[NonEmptySet[TableType]]] =
     Some(for {
       catalog <- HC.getCatalog
@@ -94,7 +92,6 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       maxConcurrency = cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
       maxLifetime = cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
     } yield {
-      println(s"maxConcurrency: $maxConcurrency")
       TransactorConfig
         .withDefaultTimeouts(
           JdbcDriverConfig.JdbcDriverManagerConfig(

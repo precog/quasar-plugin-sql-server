@@ -48,8 +48,6 @@ private[datasource] object SQLServerDatasource {
       log: Logger)
       : LightweightDatasourceModule.DS[F] = {
 
-    log.info(s"in apply datasource")
-
     val maskInterpreter =
       MaskInterpreter(SQLServerHygiene) { (table, schema) =>
         discovery.tableColumns(table.asIdent, schema.map(_.asIdent))
