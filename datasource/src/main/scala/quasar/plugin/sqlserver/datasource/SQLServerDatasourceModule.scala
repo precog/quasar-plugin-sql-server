@@ -92,6 +92,7 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       maxConcurrency = cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
       maxLifetime = cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
     } yield {
+      println(s"maxConcurrency: $maxConcurrency")
       TransactorConfig
         .withDefaultTimeouts(
           JdbcDriverConfig.JdbcDriverManagerConfig(
