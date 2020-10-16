@@ -26,8 +26,6 @@ import cats.implicits._
 
 import monocle.{Lens, Traversal}
 
-import quasar.plugin.jdbc.Redacted
-
 import shims.monoidToScalaz
 
 final case class ConnectionConfig(
@@ -79,6 +77,9 @@ final case class ConnectionConfig(
 }
 
 object ConnectionConfig {
+
+  val Redacted = "--REDACTED--"
+
   val SensitiveParameters: Set[String] =
     Set("password")
 
