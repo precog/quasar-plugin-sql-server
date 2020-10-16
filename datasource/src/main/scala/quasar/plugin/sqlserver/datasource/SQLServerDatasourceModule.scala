@@ -16,10 +16,6 @@
 
 package quasar.plugin.sqlserver.datasource
 
-import scala._
-import scala.Predef._
-import scala.concurrent.duration._
-
 import quasar.RateLimiting
 import quasar.api.datasource.{DatasourceType, DatasourceError}
 import quasar.api.datasource.DatasourceError.ConfigurationError
@@ -28,6 +24,11 @@ import quasar.connector.datasource.{LightweightDatasourceModule, Reconfiguration
 import quasar.plugin.jdbc.{JdbcDiscovery, JdbcDriverConfig, TableType, TransactorConfig}
 import quasar.plugin.jdbc.datasource.JdbcDatasourceModule
 import quasar.plugin.sqlserver.ConnectionConfig
+
+import scala._
+import scala.Predef._
+import scala.collection.immutable.SortedSet
+import scala.concurrent.duration._
 
 import java.net.URI
 import java.util.UUID
@@ -38,7 +39,7 @@ import cats.data.{NonEmptyList, NonEmptySet}
 import cats.effect.{ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 
-import doobie.{ConnectionIO, Transactor}
+import doobie._
 
 import org.slf4s.Logger
 
@@ -69,18 +70,17 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       .pure[Resource[F, ?]]
   }
 
-  // TODO
+  // FIXME
   def discoverableTableTypes(log: Logger): Option[ConnectionIO[NonEmptySet[TableType]]] =
-    None
-    //Some(for {
-    //  catalog <- HC.getCatalog
-    //  rs <- HC.getMetaData(FDMD.getTableTypes)
-    //  names <- FC.embed(rs, HRS.build[SortedSet, String])
-    //  _ <- FC.delay(log.debug(s"AVAILABLE TABLE TYPES: ${names.toList.mkString(", ")}"))
-    //  pruned = names.filterNot(n => n == "SYSTEM TABLE" || n == "SYSTEM VIEW")
-    //  default = NonEmptySet.of("TABLE", "VIEW")
-    //  discoverable = NonEmptySet.fromSet(pruned) getOrElse default
-    //} yield discoverable.map(TableType(_)))
+    Some(for {
+      catalog <- HC.getCatalog
+      rs <- HC.getMetaData(FDMD.getTableTypes)
+      names <- FC.embed(rs, HRS.build[SortedSet, String])
+      _ <- FC.delay(log.debug(s"AVAILABLE TABLE TYPES: ${names.toList.mkString(", ")}"))
+      pruned = names.filterNot(n => n == "SYSTEM TABLE" || n == "SYSTEM VIEW")
+      default = NonEmptySet.of("TABLE", "VIEW")
+      discoverable = NonEmptySet.fromSet(pruned) getOrElse default
+    } yield discoverable.map(TableType(_)))
 
   def transactorConfig(config: DatasourceConfig)
       : Either[NonEmptyList[String], TransactorConfig] =
