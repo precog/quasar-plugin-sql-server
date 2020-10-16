@@ -38,7 +38,7 @@ lazy val datasource = project
   .in(file("datasource"))
   .dependsOn(core % BothScopes)
   .settings(
-    name := "quasar-destination-sql-server",
+    name := "quasar-datasource-sql-server",
 
     quasarPluginName := "sql-server",
     quasarPluginQuasarVersion := quasarVersion.value,
