@@ -17,6 +17,7 @@
 package quasar.plugin.sqlserver
 
 import scala._, Predef._
+import scala.concurrent.duration._
 
 import argonaut._, Argonaut._, ArgonautCats._
 
@@ -30,7 +31,9 @@ import shims.monoidToScalaz
 
 final case class ConnectionConfig(
     baseUrl: String,
-    parameters: List[DriverParameter]) {
+    parameters: List[DriverParameter],
+    maxConcurrency: Option[Int],
+    maxLifetime: Option[FiniteDuration]) {
 
   import ConnectionConfig._
 
@@ -100,16 +103,30 @@ object ConnectionConfig {
 
     val parameterNames: Traversal[ConnectionConfig, String] =
       driverParameters.composeLens(DriverParameter.Optics.name)
+
+    val maxConcurrency: Lens[ConnectionConfig, Option[Int]] =
+      Lens[ConnectionConfig, Option[Int]](_.maxConcurrency)(n => _.copy(maxConcurrency = n))
+
+    val maxLifetime: Lens[ConnectionConfig, Option[FiniteDuration]] =
+      Lens[ConnectionConfig, Option[FiniteDuration]](_.maxLifetime)(d => _.copy(maxLifetime = d))
   }
 
   implicit val connectionConfigCodecJson: CodecJson[ConnectionConfig] =
     CodecJson(
       cc =>
         ("jdbcUrl" := cc.jdbcUrl) ->:
+        ("maxConcurrency" :=? cc.maxConcurrency) ->?:
+        ("maxLifetimeSecs" :=? cc.maxLifetime.map(_.toSeconds)) ->?:
         jEmptyObject,
 
       cursor => for {
-        urlString <- (cursor --\ "jdbcUrl").as[String]
+        maxConcurrency <- (cursor --\ "maxConcurrency").as[Option[Int]]
+        maxLifetimeSecs <- (cursor --\ "maxLifetimeSecs").as[Option[Int]]
+        maxLifetime = maxLifetimeSecs.map(_.seconds)
+
+        urlCursor = cursor --\ "jdbcUrl"
+
+        urlString <- urlCursor.as[String]
 
         queryStart = urlString.indexOf(';')
 
@@ -133,9 +150,9 @@ object ConnectionConfig {
             DecodeResult.ok(DriverParameter(name, value))
 
           case _ =>
-            DecodeResult.fail[DriverParameter]("Malformed driver parameter", cursor.history)
+            DecodeResult.fail[DriverParameter]("Malformed driver parameter", urlCursor.history)
         }
-      } yield ConnectionConfig(baseUrl, params))
+      } yield ConnectionConfig(baseUrl, params, maxConcurrency, maxLifetime))
 
   implicit val connectionConfigEq: Eq[ConnectionConfig] =
     Eq.by(cc => (
@@ -144,6 +161,6 @@ object ConnectionConfig {
 
   implicit val connectionConfigShow: Show[ConnectionConfig] =
     Show show { cc =>
-      s"ConnectionConfig(${cc.jdbcUrl})"
+      s"ConnectionConfig(${cc.jdbcUrl}, ${cc.maxConcurrency}, ${cc.maxLifetime})"
     }
 }

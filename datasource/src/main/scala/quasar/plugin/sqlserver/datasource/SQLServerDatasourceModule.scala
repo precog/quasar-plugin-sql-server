@@ -18,6 +18,7 @@ package quasar.plugin.sqlserver.datasource
 
 import scala._
 import scala.Predef._
+import scala.concurrent.duration._
 
 import quasar.RateLimiting
 import quasar.api.datasource.{DatasourceType, DatasourceError}
@@ -47,6 +48,9 @@ import scalaz.{NonEmptyList => ZNel}
 // https://docs.microsoft.com/en-us/sql/connect/jdbc/using-adaptive-buffering?view=sql-server-ver15
 object SQLServerDbDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] {
 
+  val DefaultConnectionMaxConcurrency: Int = 8
+  val DefaultConnectionMaxLifetime: FiniteDuration = 5.minutes
+
   def jdbcDatasource[F[_]: ConcurrentEffect: ContextShift: MonadResourceErr: Timer, A](
       config: DatasourceConfig,
       transactor: Transactor[F],
@@ -64,14 +68,18 @@ object SQLServerDbDatasourceModule extends JdbcDatasourceModule[DatasourceConfig
       jdbcUrl <-
         Either.catchNonFatal(new URI(cc.jdbcUrl))
           .leftMap(_ => NonEmptyList.one("JDBC URL is not a valid URI"))
+
+      maxConcurrency = cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
+      maxLifetime = cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
     } yield {
       TransactorConfig
         .withDefaultTimeouts(
           JdbcDriverConfig.JdbcDriverManagerConfig(
             jdbcUrl,
             Some("com.microsoft.sqlserver.jdbc.SQLServerDriver")),
-          connectionMaxConcurrency = 16,
+          connectionMaxConcurrency = maxConcurrency,
           connectionReadOnly = true)
+        .copy(connectionMaxLifetime = maxLifetime)
     }
 
   def kind: DatasourceType = DatasourceType("sql-server", 1L)
