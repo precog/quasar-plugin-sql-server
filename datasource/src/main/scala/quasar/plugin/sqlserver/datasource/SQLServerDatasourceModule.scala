@@ -25,7 +25,7 @@ import quasar.api.datasource.{DatasourceType, DatasourceError}
 import quasar.api.datasource.DatasourceError.ConfigurationError
 import quasar.connector.{ByteStore, ExternalCredentials, MonadResourceErr}
 import quasar.connector.datasource.{LightweightDatasourceModule, Reconfiguration}
-import quasar.plugin.jdbc.{JdbcDriverConfig, TransactorConfig}
+import quasar.plugin.jdbc.{JdbcDiscovery, JdbcDriverConfig, TableType, TransactorConfig}
 import quasar.plugin.jdbc.datasource.JdbcDatasourceModule
 import quasar.plugin.sqlserver.ConnectionConfig
 
@@ -34,11 +34,11 @@ import java.util.UUID
 
 import argonaut._, Argonaut._, ArgonautCats._
 
-import cats.data.NonEmptyList
+import cats.data.{NonEmptyList, NonEmptySet}
 import cats.effect.{ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 
-import doobie.Transactor
+import doobie.{ConnectionIO, Transactor}
 
 import org.slf4s.Logger
 
@@ -46,7 +46,7 @@ import scalaz.{NonEmptyList => ZNel}
 
 // adaptive buffering:
 // https://docs.microsoft.com/en-us/sql/connect/jdbc/using-adaptive-buffering?view=sql-server-ver15
-object SQLServerDbDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] {
+object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] {
 
   val DefaultConnectionMaxConcurrency: Int = 8
   val DefaultConnectionMaxLifetime: FiniteDuration = 5.minutes
@@ -58,7 +58,27 @@ object SQLServerDbDatasourceModule extends JdbcDatasourceModule[DatasourceConfig
       byteStore: ByteStore[F],
       getAuth: UUID => F[Option[ExternalCredentials[F]]],
       log: Logger)
-      : Resource[F, Either[SQLServerDbDatasourceModule.InitError, LightweightDatasourceModule.DS[F]]] = ???
+      : Resource[F, Either[SQLServerDatasourceModule.InitError, LightweightDatasourceModule.DS[F]]] = {
+
+    val discovery = JdbcDiscovery(discoverableTableTypes(log))
+
+    SQLServerDatasource(transactor, discovery, log)
+      .asRight[InitError]
+      .pure[Resource[F, ?]]
+  }
+
+  // TODO
+  def discoverableTableTypes(log: Logger): Option[ConnectionIO[NonEmptySet[TableType]]] =
+    None
+    //Some(for {
+    //  catalog <- HC.getCatalog
+    //  rs <- HC.getMetaData(FDMD.getTableTypes)
+    //  names <- FC.embed(rs, HRS.build[SortedSet, String])
+    //  _ <- FC.delay(log.debug(s"AVAILABLE TABLE TYPES: ${names.toList.mkString(", ")}"))
+    //  pruned = names.filterNot(n => n == "SYSTEM TABLE" || n == "SYSTEM VIEW")
+    //  default = NonEmptySet.of("TABLE", "VIEW")
+    //  discoverable = NonEmptySet.fromSet(pruned) getOrElse default
+    //} yield discoverable.map(TableType(_)))
 
   def transactorConfig(config: DatasourceConfig)
       : Either[NonEmptyList[String], TransactorConfig] =
