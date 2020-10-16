@@ -17,6 +17,7 @@ lazy val quasarVersion =
 lazy val quasarPluginJdbcVersion =
   Def.setting[String](managedVersions.value("precog-quasar-plugin-jdbc"))
 
+val specs2Version = "4.9.4"
 
 // Include to also publish a project's tests
 lazy val publishTestsSettings = Seq(
@@ -32,7 +33,8 @@ lazy val core = project
   .settings(
     name := "quasar-plugin-sql-server",
     libraryDependencies ++= Seq(
-      "com.precog" %% "quasar-plugin-jdbc" % quasarPluginJdbcVersion.value))
+      "com.precog" %% "quasar-plugin-jdbc" % quasarPluginJdbcVersion.value,
+      "org.specs2" %% "specs2-core" % specs2Version % Test))
 
 lazy val datasource = project
   .in(file("datasource"))
