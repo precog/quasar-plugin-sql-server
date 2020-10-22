@@ -21,12 +21,9 @@ import scala._, Predef._
 import doobie.enum.JdbcType
 
 import quasar.api.ColumnType
-import quasar.plugin.jdbc._
 
 object Mapping {
   import JdbcType._
-
-  val DATETIMEOFFSET = "datetimeoffset"
 
   // https://docs.microsoft.com/en-us/sql/connect/jdbc/using-basic-data-types?view=sql-server-ver15
   val JdbcColumnTypes: Map[JdbcType, ColumnType.Scalar] =
@@ -39,6 +36,7 @@ object Mapping {
       Double -> ColumnType.Number,
       Integer -> ColumnType.Number,
       LongVarChar -> ColumnType.String,
+      MsSqlDateTimeOffset -> ColumnType.OffsetDateTime, // cool!
       NChar -> ColumnType.String,
       Numeric -> ColumnType.Number,
       NVarChar -> ColumnType.String,
@@ -48,7 +46,4 @@ object Mapping {
       Timestamp -> ColumnType.LocalDateTime,
       TinyInt -> ColumnType.Number,
       VarChar -> ColumnType.String)
-
-  val SQLServerColumnTypes: Map[VendorType, ColumnType.Scalar] =
-    Map(DATETIMEOFFSET -> ColumnType.OffsetDateTime)
 }

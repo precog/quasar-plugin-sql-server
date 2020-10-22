@@ -31,8 +31,7 @@ object SQLServerRValueColumn extends RValueColumn {
   import java.sql.Types._
 
   def isSupported(sqlType: SqlType, sqlServerType: VendorType): Boolean =
-    SupportedSqlTypes(sqlType) ||
-    Mapping.SQLServerColumnTypes.contains(sqlServerType)
+    SupportedSqlTypes(sqlType)
 
   // TODO make sure this aligns with isSupported
   def unsafeRValue(rs: ResultSet, col: ColumnNum, sqlType: SqlType, vendorType: VendorType): RValue = {
@@ -60,10 +59,7 @@ object SQLServerRValueColumn extends RValueColumn {
         unlessNull(rs.getBoolean(col))(RValue.rBoolean(_))
 
       case DATE =>
-        if (vendorType == Mapping.DATETIMEOFFSET)
-          unlessNull(rs.getObject(col, classOf[OffsetDateTime]))(RValue.rOffsetDateTime(_))
-        else
-          unlessNull(rs.getObject(col, classOf[LocalDate]))(RValue.rLocalDate(_))
+        unlessNull(rs.getObject(col, classOf[LocalDate]))(RValue.rLocalDate(_))
 
       case TIME =>
         unlessNull(rs.getObject(col, classOf[LocalTime]))(RValue.rLocalTime(_))
@@ -77,5 +73,6 @@ object SQLServerRValueColumn extends RValueColumn {
 
   ////
 
-  private val SupportedSqlTypes = Mapping.JdbcColumnTypes.keySet.map(_.toInt)
+  private val SupportedSqlTypes: Set[Int] =
+    Mapping.JdbcColumnTypes.keySet.map(_.toInt)
 }

@@ -49,10 +49,7 @@ private[datasource] object SQLServerDatasource {
     val maskInterpreter =
       MaskInterpreter(SQLServerHygiene) { (table, schema) =>
         discovery.tableColumns(table.asIdent, schema.map(_.asIdent))
-          .map(m =>
-            Mapping.SQLServerColumnTypes.get(m.vendorType)
-              .orElse(Mapping.JdbcColumnTypes.get(m.jdbcType))
-              .tupleLeft(m.name))
+          .map(m => Mapping.JdbcColumnTypes.get(m.jdbcType).tupleLeft(m.name))
           .unNone
           .compile.to(Map)
       }
