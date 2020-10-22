@@ -45,6 +45,7 @@ import org.slf4s.Logger
 
 import scalaz.{NonEmptyList => ZNel}
 
+// TODO comment on which param is adaptive by default in the config
 // adaptive buffering:
 // https://docs.microsoft.com/en-us/sql/connect/jdbc/using-adaptive-buffering?view=sql-server-ver15
 object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] {
@@ -68,7 +69,6 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       .pure[Resource[F, ?]]
   }
 
-  // TODO this is probably not correct; make it so
   def discoverableTableTypes(log: Logger): Option[ConnectionIO[NonEmptySet[TableType]]] =
     Some(for {
       catalog <- HC.getCatalog
