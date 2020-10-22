@@ -79,17 +79,40 @@ final case class ConnectionConfig(
   }
 }
 
+// applicationIntent=ReadOnly
+// selectMethod=cursor
+// sendTimeAsDatetime=false
+// sendTemporalDataTypesAsStringForBulkCopy=true ????
+// delayLoadingJobs
 object ConnectionConfig {
 
   val Redacted = "--REDACTED--"
 
-  // TODO
   val SensitiveParameters: Set[String] =
-    Set("password")
+    Set(
+      "clientKeyPassword",
+      "gsscredential",
+      "keyStoreSecret",
+      "password",
+      "trustStorePassword")
 
-  // TODO
   val DeniedParameters: Set[String] =
-    Set()
+    Set(
+      "accessToken", // can't be set using a connection URL
+      "cancelQueryTimeout",
+      "delayLoadingJobs",
+      "disableStatementPooling",
+      "enablePrepareOnFirstPreparedStatementCall",
+      "failoverPartner",
+      "lastUpdateCount",
+      "lockTimeout",
+      "packetSize",
+      "responseBuffering",
+      "serverPreparedStatementDiscardThreshold",
+      "statementPoolingCacheSize",
+      "useBulkCopyForBatchInsert",
+      "useFmtOnly",
+      "xopenStates")
 
   object Optics {
     import shims.traverseToScalaz

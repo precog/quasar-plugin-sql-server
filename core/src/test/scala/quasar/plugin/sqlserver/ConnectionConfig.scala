@@ -23,10 +23,10 @@ import argonaut._, Argonaut._
 
 import org.specs2.mutable.Specification
 
-import quasar.plugin.jdbc.Redacted
-
 // "jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=TestDB"
 object ConnectionConfigSpec extends Specification {
+
+  import ConnectionConfig.Redacted
 
   "serialization" >> {
     "valid config" >> {
@@ -114,45 +114,44 @@ object ConnectionConfigSpec extends Specification {
       js.decodeEither[ConnectionConfig] must beRight(expected)
     }
 
-    // FIXME is '?' really an invalid driver param? find one that's invalid
-    //"fails when parameters malformed" >> {
-    //  val js = """
-    //    {
-    //      "jdbcUrl": "jdbc:sqlserver://localhost:1433;?=SA;password=<YourStrong@Passw0rd>;database=TestDB",
-    //      "maxConcurrency": 4,
-    //      "maxLifetimeSecs": 180
-    //    }
-    //  """
+    "fails when parameters malformed" >> {
+      val js = """
+        {
+          "jdbcUrl": "jdbc:sqlserver://localhost:1433;=SA;password=<YourStrong@Passw0rd>;database=TestDB",
+          "maxConcurrency": 4,
+          "maxLifetimeSecs": 180
+        }
+      """
 
-    //  js.decodeEither[ConnectionConfig] must beLeft(contain("Malformed driver parameter"))
-    //}
+      js.decodeEither[ConnectionConfig] must beLeft(contain("Malformed driver parameter"))
+    }
   }
 
-  // FIXME enable
-/*
   "sanitization" >> {
     "sanitizes password parameters" >> {
       val cc =
         ConnectionConfig(
-          "jdbc:mariadb://example.com/db",
+          "jdbc:sqlserver://localhost:1433",
           List(
-            DriverParameter("password", "secret1"),
-            DriverParameter("keyPassword", "secret2"),
-            DriverParameter("keyStorePassword", "secret3"),
-            DriverParameter("trustStorePassword", "secret4"),
-            DriverParameter("user", "bob")),
+            DriverParameter("clientKeyPassword", "secret1"),
+            DriverParameter("gsscredential", "secret2"),
+            DriverParameter("keyStoreSecret", "secret3"),
+            DriverParameter("password", "secret4"),
+            DriverParameter("trustStorePassword", "secret5"),
+            DriverParameter("userName", "bob")),
           None,
           None)
 
       val expected =
         ConnectionConfig(
-          "jdbc:mariadb://example.com/db",
+          "jdbc:sqlserver://localhost:1433",
           List(
+            DriverParameter("clientKeyPassword", Redacted),
+            DriverParameter("gsscredential", Redacted),
+            DriverParameter("keyStoreSecret", Redacted),
             DriverParameter("password", Redacted),
-            DriverParameter("keyPassword", Redacted),
-            DriverParameter("keyStorePassword", Redacted),
             DriverParameter("trustStorePassword", Redacted),
-            DriverParameter("user", "bob")),
+            DriverParameter("userName", "bob")),
           None,
           None)
 
@@ -164,40 +163,40 @@ object ConnectionConfigSpec extends Specification {
     "fails when a denied parameter is present" >> {
       val cc =
         ConnectionConfig(
-          "jdbc:mariadb://example.com/db",
+          "jdbc:sqlserver://localhost:1433",
           List(
             DriverParameter("password", "nopeek"),
-            DriverParameter("user", "bob"),
-            DriverParameter("pool", "true")),
+            DriverParameter("userName", "bob"),
+            DriverParameter("lockTimeout", "1000")),
           Some(3),
           None)
 
-      cc.validated.toEither must beLeft("Unsupported parameters: pool")
+      cc.validated.toEither must beLeft("Unsupported parameters: lockTimeout")
     }
 
     "fails when multiple denied parameters are present" >> {
       val cc =
         ConnectionConfig(
-          "jdbc:mariadb://example.com/db",
+          "jdbc:sqlserver://localhost:1433",
           List(
             DriverParameter("password", "nopeek"),
-            DriverParameter("useMysqlMetadata", "true"),
-            DriverParameter("user", "bob"),
-            DriverParameter("pool", "true")),
+            DriverParameter("lastUpdateCount", "true"),
+            DriverParameter("userName", "bob"),
+            DriverParameter("lockTimeout", "1000")),
           Some(3),
           None)
 
-      cc.validated.toEither must beLeft("Unsupported parameters: useMysqlMetadata, pool")
+      cc.validated.toEither must beLeft("Unsupported parameters: lastUpdateCount, lockTimeout")
     }
 
     "succeeds when no parameters are denied" >> {
       val cc =
         ConnectionConfig(
-          "jdbc:mariadb://example.com/db",
+          "jdbc:sqlserver://localhost:1433",
           List(
             DriverParameter("password", "nopeek"),
-            DriverParameter("user", "bob"),
-            DriverParameter("useCompression", "true")),
+            DriverParameter("userName", "bob"),
+            DriverParameter("databaseName", "xyzdb")),
           Some(3),
           None)
 
@@ -208,69 +207,66 @@ object ConnectionConfigSpec extends Specification {
   "merge sensitive" >> {
     "merges undefined sensitive params from other" >> {
       val a = ConnectionConfig(
-        "jdbc:mariadb://example.com/db",
+        "jdbc:sqlserver://localhost:1433",
         List(
-          DriverParameter("user", "alice"),
-          DriverParameter("useCompression", "true")),
+          DriverParameter("userName", "alice"),
+          DriverParameter("databaseName", "db1")),
         None,
         None)
 
       val b = ConnectionConfig(
-        "jdbc:mariadb://example.com/db",
+        "jdbc:sqlserver://localhost:1433",
         List(
-          DriverParameter("user", "bob"),
+          DriverParameter("userName", "bob"),
           DriverParameter("password", "secret"),
-          DriverParameter("useCompression", "false")),
+          DriverParameter("databaseName", "db2")),
         None,
         None)
 
-      val expected =
-        ConnectionConfig(
-          "jdbc:mariadb://example.com/db",
-          List(
-            DriverParameter("password", "secret"),
-            DriverParameter("user", "alice"),
-            DriverParameter("useCompression", "true")),
-          None,
-          None)
+      val expected = ConnectionConfig(
+        "jdbc:sqlserver://localhost:1433",
+        List(
+          DriverParameter("password", "secret"),
+          DriverParameter("userName", "alice"),
+          DriverParameter("databaseName", "db1")),
+        None,
+        None)
 
       a.mergeSensitive(b) must_=== expected
     }
 
     "retains local sensitive params" >> {
       val a = ConnectionConfig(
-        "jdbc:mariadb://example.com/db",
+        "jdbc:sqlserver://localhost:1433",
         List(
-          DriverParameter("user", "alice"),
+          DriverParameter("userName", "alice"),
           DriverParameter("password", "toor"),
-          DriverParameter("useCompression", "true")),
+          DriverParameter("databaseName", "db1")),
         None,
         None)
 
       val b = ConnectionConfig(
-        "jdbc:mariadb://example.com/db",
+        "jdbc:sqlserver://localhost:1433",
         List(
-          DriverParameter("user", "bob"),
+          DriverParameter("userName", "bob"),
           DriverParameter("password", "secret"),
-          DriverParameter("keyStorePassword", "hiddenkeys"),
-          DriverParameter("useCompression", "false")),
+          DriverParameter("keyStoreSecret", "hiddenkeys"),
+          DriverParameter("databaseName", "db2")),
         None,
         None)
 
-      val expected =
-        ConnectionConfig(
-          "jdbc:mariadb://example.com/db",
-          List(
-            DriverParameter("keyStorePassword", "hiddenkeys"),
-            DriverParameter("user", "alice"),
-            DriverParameter("password", "toor"),
-            DriverParameter("useCompression", "true")),
-          None,
-          None)
+      val expected = ConnectionConfig(
+        "jdbc:sqlserver://localhost:1433",
+        List(
+          DriverParameter("keyStoreSecret", "hiddenkeys"),
+          DriverParameter("userName", "alice"),
+          DriverParameter("password", "toor"),
+          DriverParameter("databaseName", "db1")),
+        None,
+        None)
 
       a.mergeSensitive(b) must_=== expected
     }
   }
-*/
 }
 
