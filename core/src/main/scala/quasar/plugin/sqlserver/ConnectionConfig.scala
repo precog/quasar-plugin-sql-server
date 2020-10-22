@@ -79,6 +79,7 @@ final case class ConnectionConfig(
   }
 }
 
+// TODO include these autoconfigured and then add them to DeniedParameters?
 // applicationIntent=ReadOnly
 // selectMethod=cursor
 // sendTimeAsDatetime=false
