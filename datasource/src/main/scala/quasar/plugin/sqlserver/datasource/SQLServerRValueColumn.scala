@@ -49,13 +49,13 @@ object SQLServerRValueColumn extends RValueColumn {
       case TINYINT | SMALLINT | INTEGER | BIGINT =>
         unlessNull(rs.getLong(col))(RValue.rLong(_))
 
-      case DOUBLE | FLOAT | REAL =>
+      case DOUBLE | REAL =>
         unlessNull(rs.getDouble(col))(RValue.rDouble(_))
 
       case DECIMAL | NUMERIC =>
         unlessNull(rs.getBigDecimal(col))(RValue.rNum(_))
 
-      case BOOLEAN =>
+      case BIT =>
         unlessNull(rs.getBoolean(col))(RValue.rBoolean(_))
 
       case DATE =>
