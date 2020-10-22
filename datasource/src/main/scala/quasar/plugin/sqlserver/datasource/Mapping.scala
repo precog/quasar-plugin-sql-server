@@ -29,6 +29,7 @@ object Mapping {
   val YEAR = "year"
   val TINYINT = "tinyint"
 
+  // TODO are these correct for SQL Server
   val JdbcColumnTypes: Map[JdbcType, ColumnType.Scalar] =
     Map(
       BigInt -> ColumnType.Number,
@@ -45,6 +46,7 @@ object Mapping {
       TinyInt -> ColumnType.Number,
       VarChar -> ColumnType.String)
 
+  // TODO fill this out
   val SQLServerColumnTypes: Map[VendorType, ColumnType.Scalar] =
     Map()
 }

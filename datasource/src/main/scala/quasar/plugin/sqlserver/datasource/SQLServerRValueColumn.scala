@@ -35,6 +35,7 @@ object SQLServerRValueColumn extends RValueColumn {
     Mapping.SQLServerColumnTypes.contains(sqlServerType) ||
     (sqlType == BIT && sqlServerType == Mapping.TINYINT)
 
+  // TODO make sure this aligns with isSupported
   def unsafeRValue(rs: ResultSet, col: ColumnNum, sqlType: SqlType, vendorType: VendorType): RValue = {
     @inline
     def unlessNull[A](a: A)(f: A => RValue): RValue =
@@ -60,13 +61,13 @@ object SQLServerRValueColumn extends RValueColumn {
         unlessNull(rs.getBoolean(col))(RValue.rBoolean(_))
 
       case BIT =>
-        if (vendorType == Mapping.TINYINT)
+        if (vendorType == Mapping.TINYINT) // TODO is this correct?
           unlessNull(rs.getBoolean(col))(RValue.rBoolean(_))
         else
           unsupported
 
       case DATE =>
-        if (vendorType == Mapping.YEAR)
+        if (vendorType == Mapping.YEAR) // TODO is this correct?
           unlessNull(rs.getLong(col))(RValue.rLong(_))
         else
           unlessNull(rs.getObject(col, classOf[LocalDate]))(RValue.rLocalDate(_))

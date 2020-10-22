@@ -52,7 +52,7 @@ private[datasource] object SQLServerDatasource {
       MaskInterpreter(SQLServerHygiene) { (table, schema) =>
         discovery.tableColumns(table.asIdent, schema.map(_.asIdent))
           .map(m =>
-            // TODO correct?
+            // TODO do we need this special mapping or a different one here?
             if (m.jdbcType == JdbcType.Bit && m.vendorType == Mapping.TINYINT)
               Some(m.name -> ColumnType.Boolean)
             else

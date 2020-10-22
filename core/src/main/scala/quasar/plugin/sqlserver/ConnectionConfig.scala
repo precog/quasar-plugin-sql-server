@@ -83,9 +83,11 @@ object ConnectionConfig {
 
   val Redacted = "--REDACTED--"
 
+  // TODO
   val SensitiveParameters: Set[String] =
     Set("password")
 
+  // TODO
   val DeniedParameters: Set[String] =
     Set()
 

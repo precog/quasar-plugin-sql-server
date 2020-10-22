@@ -68,7 +68,7 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       .pure[Resource[F, ?]]
   }
 
-  // TODO is this correct?
+  // TODO this is probably not correct; make it so
   def discoverableTableTypes(log: Logger): Option[ConnectionIO[NonEmptySet[TableType]]] =
     Some(for {
       catalog <- HC.getCatalog
