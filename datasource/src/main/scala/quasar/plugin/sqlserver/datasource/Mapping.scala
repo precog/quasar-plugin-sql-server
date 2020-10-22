@@ -26,19 +26,22 @@ import quasar.plugin.jdbc._
 object Mapping {
   import JdbcType._
 
-  val YEAR = "year"
-  val TINYINT = "tinyint"
+  val DATETIMEOFFSET = "datetimeoffset"
 
-  // TODO are these correct for SQL Server
+  // https://docs.microsoft.com/en-us/sql/connect/jdbc/using-basic-data-types?view=sql-server-ver15
   val JdbcColumnTypes: Map[JdbcType, ColumnType.Scalar] =
     Map(
       BigInt -> ColumnType.Number,
+      Bit -> ColumnType.Boolean,
       Char -> ColumnType.String,
       Date -> ColumnType.LocalDate,
       Decimal -> ColumnType.Number,
       Double -> ColumnType.Number,
       Integer -> ColumnType.Number,
       LongVarChar -> ColumnType.String,
+      NChar -> ColumnType.String,
+      Numeric -> ColumnType.Number,
+      NVarChar -> ColumnType.String,
       Real -> ColumnType.Number,
       SmallInt -> ColumnType.Number,
       Time -> ColumnType.LocalTime,
@@ -46,7 +49,6 @@ object Mapping {
       TinyInt -> ColumnType.Number,
       VarChar -> ColumnType.String)
 
-  // TODO fill this out
   val SQLServerColumnTypes: Map[VendorType, ColumnType.Scalar] =
-    Map()
+    Map(DATETIMEOFFSET -> ColumnType.OffsetDateTime)
 }
