@@ -32,8 +32,7 @@ object SQLServerRValueColumn extends RValueColumn {
 
   def isSupported(sqlType: SqlType, sqlServerType: VendorType): Boolean =
     SupportedSqlTypes(sqlType) ||
-    Mapping.SQLServerColumnTypes.contains(sqlServerType) ||
-    (sqlType == BIT && sqlServerType == Mapping.TINYINT)
+    Mapping.SQLServerColumnTypes.contains(sqlServerType)
 
   // TODO make sure this aligns with isSupported
   def unsafeRValue(rs: ResultSet, col: ColumnNum, sqlType: SqlType, vendorType: VendorType): RValue = {
@@ -60,15 +59,9 @@ object SQLServerRValueColumn extends RValueColumn {
       case BOOLEAN =>
         unlessNull(rs.getBoolean(col))(RValue.rBoolean(_))
 
-      case BIT =>
-        if (vendorType == Mapping.TINYINT) // TODO is this correct?
-          unlessNull(rs.getBoolean(col))(RValue.rBoolean(_))
-        else
-          unsupported
-
       case DATE =>
-        if (vendorType == Mapping.YEAR) // TODO is this correct?
-          unlessNull(rs.getLong(col))(RValue.rLong(_))
+        if (vendorType == Mapping.DATETIMEOFFSET)
+          unlessNull(rs.getObject(col, classOf[OffsetDateTime]))(RValue.rOffsetDateTime(_))
         else
           unlessNull(rs.getObject(col, classOf[LocalDate]))(RValue.rLocalDate(_))
 

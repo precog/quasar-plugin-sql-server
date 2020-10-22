@@ -28,10 +28,8 @@ import cats.effect.{Bracket, Resource}
 import cats.implicits._
 
 import doobie._
-import doobie.enum.JdbcType
 import doobie.implicits._
 
-import quasar.api.ColumnType
 import quasar.connector.MonadResourceErr
 import quasar.connector.datasource.{LightweightDatasourceModule, Loader}
 import quasar.plugin.jdbc._
@@ -52,13 +50,9 @@ private[datasource] object SQLServerDatasource {
       MaskInterpreter(SQLServerHygiene) { (table, schema) =>
         discovery.tableColumns(table.asIdent, schema.map(_.asIdent))
           .map(m =>
-            // TODO do we need this special mapping or a different one here?
-            if (m.jdbcType == JdbcType.Bit && m.vendorType == Mapping.TINYINT)
-              Some(m.name -> ColumnType.Boolean)
-            else
-              Mapping.SQLServerColumnTypes.get(m.vendorType)
-                .orElse(Mapping.JdbcColumnTypes.get(m.jdbcType))
-                .tupleLeft(m.name))
+            Mapping.SQLServerColumnTypes.get(m.vendorType)
+              .orElse(Mapping.JdbcColumnTypes.get(m.jdbcType))
+              .tupleLeft(m.name))
           .unNone
           .compile.to(Map)
       }
