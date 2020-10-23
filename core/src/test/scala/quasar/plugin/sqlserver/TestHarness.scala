@@ -36,6 +36,7 @@ import quasar.api.resource._
 import quasar.connector.{MonadResourceErr, ResourceError}
 import quasar.contrib.scalaz.MonadError_
 
+// sudo docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=<YourStrong@Passw0rd>" -p 1433:1433 --name sql1 -h sql1 -d mcr.microsoft.com/mssql/server:2019-latest
 trait TestHarness extends Specification with CatsIO with BeforeAll {
 
   implicit val ioMonadResourceErr: MonadResourceErr[IO] =
