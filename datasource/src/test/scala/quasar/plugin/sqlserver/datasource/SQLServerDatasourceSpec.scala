@@ -67,8 +67,10 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
     def obj(assocs: (String, RValue)*): RValue =
       rObject(Map(assocs: _*))
 
-    "boolean (BIT)" >> {
+    "boolean" >> {
       harnessed() use { case (xa, ds, path, name) =>
+        println(s"name: $name")
+
         val setup = for {
           _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (b BIT)").update.run
           _ <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1)").update.run
