@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package quasar.plugin.mariadb
+package quasar.plugin.sqlserver
 
 import scala.{text => _, Stream => _, _}, Predef._
 import scala.concurrent.ExecutionContext
@@ -47,7 +47,8 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
   val frag = Fragment.const0(_, None)
 
   def TestUrl(db: Option[String]): String =
-    s"jdbc:sqlserver://localhost:1433${db.map(";database=" + _).getOrElse("")};userName=SA;password=%3CYourStrong%40Passw0rd%3E"
+    //s"jdbc:sqlserver://localhost:1433${db.map(";database=" + _).getOrElse("")};user=SA;password=%3CYourStrong%40Passw0rd%3E"
+    "jdbc:sqlserver://localhost:1433;user=SA;password=%3CYourStrong%40Passw0rd%3E;database=TestDB"
 
   def TestXa(jdbcUrl: String): Resource[IO, Transactor[IO]] =
     Resource.make(IO(Executors.newSingleThreadExecutor()))(p => IO(p.shutdown)) map { ex =>
@@ -58,6 +59,8 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
     }
 
   def beforeAll(): Unit = {
+    val url = TestUrl(None)
+    println(s"url: $url")
     TestXa(TestUrl(None))
       .use((frag(s"IF DB_ID (N'$TestDb') IS NOT NULL DROP DATABASE $TestDb").update.run >>
         frag(s"CREATE DATABASE $TestDb").update.run).transact(_))
