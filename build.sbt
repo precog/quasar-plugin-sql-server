@@ -33,8 +33,9 @@ lazy val core = project
   .settings(
     name := "quasar-plugin-sql-server",
     libraryDependencies ++= Seq(
-      "com.precog" %% "quasar-plugin-jdbc" % quasarPluginJdbcVersion.value,
-      "org.specs2" %% "specs2-core" % specs2Version % Test))
+      "com.precog"     %% "quasar-plugin-jdbc"         % quasarPluginJdbcVersion.value,
+      "com.codecommit" %% "cats-effect-testing-specs2" % "0.4.0"       % Test,
+      "org.specs2"     %% "specs2-core"                % specs2Version % Test))
 
 lazy val datasource = project
   .in(file("datasource"))
