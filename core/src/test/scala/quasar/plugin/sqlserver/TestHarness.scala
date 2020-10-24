@@ -42,7 +42,7 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
   implicit val ioMonadResourceErr: MonadResourceErr[IO] =
     MonadError_.facet[IO](ResourceError.throwableP)
 
-  val TestDb: String = "precog_test"
+  val TestDb: String = "precogtest"
 
   val frag = Fragment.const0(_, None)
 
@@ -79,6 +79,7 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
       : Resource[IO, (Transactor[IO], ResourcePath, String)] =
     for {
       xa <- TestXa(jdbcUrl)
+      _ = println(s"db url: $jdbcUrl")
       (path, name) <- table(xa)
     } yield (xa, path, name)
 }

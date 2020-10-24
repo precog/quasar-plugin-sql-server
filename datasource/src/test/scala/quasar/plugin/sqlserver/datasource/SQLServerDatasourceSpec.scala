@@ -67,25 +67,43 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
     def obj(assocs: (String, RValue)*): RValue =
       rObject(Map(assocs: _*))
 
-    "boolean" >> {
-      harnessed() use { case (xa, ds, path, name) =>
-        println(s"name: $name")
-
+    "foo" >> {
+      val db = "jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=TestDB"
+      TestXa(db) use { xa =>
         val setup = for {
-          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (b BIT)").update.run
-          _ <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1)").update.run
-        } yield ()
-
-        (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
-          // Some dbs use BIT and others TINYINT, we can't currently distinguish the bool
-          // TINYINT case from other TINYINT cases, so the column ends up as a number
-          val expectedB = List(rBoolean(true), rBoolean(false)).map(b => obj("b" -> b))
-          val expectedI = List(rLong(1), rLong(0)).map(b => obj("b" -> b))
-
-          (results must containTheSameElementsAs(expectedB)) or (results must containTheSameElementsAs(expectedI))
+          x <- (fr"CREATE TABLE foobar4" ++ fr0" (b BIT)").update.run
+          y <- (fr"INSERT INTO foobar4" ++ fr0" (b) VALUES (0), (1), (0)").update.run
+        } yield {
+          println(s"x: $x")
+          println(s"y: $y")
+          ()
         }
+        setup.transact(xa) >> IO(ok)
       }
     }
+
+    //"boolean" >> {
+    //  harnessed() use { case (xa, ds, path, name) =>
+    //    println(s"name: $name")
+    //    println(s"path: $path")
+
+    //    val setup = for {
+    //      x <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (b BIT)").update.run
+    //      y <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1), (0)").update.run
+    //    } yield {
+    //      println(s"x: $x")
+    //      println(s"y: $y")
+    //      ()
+    //    }
+
+    //    setup.transact(xa) >> IO(ok)
+
+    //    //(setup.transact(xa) >> loadRValues(ds, path)) map { results =>
+    //    //  val expected = List(rLong(1), rLong(0)).map(b => obj("b" -> b))
+    //    //  results must containTheSameElementsAs(expected)
+    //    //}
+    //  }
+    //}
 
   /*
     "string" >> {
