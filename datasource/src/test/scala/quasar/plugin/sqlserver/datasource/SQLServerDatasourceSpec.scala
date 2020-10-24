@@ -69,10 +69,10 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
 
     "foo" >> {
       val db = "jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=TestDB"
-      TestXa(db) use { xa =>
+      tableHarness(db) use { case (xa, _, _) =>
         val setup = for {
-          x <- (fr"CREATE TABLE foobar4" ++ fr0" (b BIT)").update.run
-          y <- (fr"INSERT INTO foobar4" ++ fr0" (b) VALUES (0), (1), (0)").update.run
+          x <- (fr"CREATE TABLE foobar5" ++ fr0" (b BIT)").update.run
+          y <- (fr"INSERT INTO foobar5" ++ fr0" (b) VALUES (0), (1), (0)").update.run
         } yield {
           println(s"x: $x")
           println(s"y: $y")
