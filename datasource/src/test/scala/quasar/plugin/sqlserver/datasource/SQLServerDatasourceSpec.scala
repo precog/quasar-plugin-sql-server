@@ -100,67 +100,60 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
         }
       }
     }
-  /*
 
-    // TINYINT | SMALLINT | MEDIUMINT | INTEGER | BIGINT | DOUBLE | FLOAT | DECIMAL
+    // TINYINT | SMALLINT | INTEGER | BIGINT | FLOAT | DECIMAL
+    // TINYINT ranges [0, 255]
     "number" >> {
-      def insert(tbl: String, tiny: Int, small: Int, med: Int, norm: Int, big: Long, dbl: Double, flt: Float, dec: BigDecimal): ConnectionIO[Int] = {
+      def insert(tbl: String, tiny: Int, small: Int, norm: Int, big: Long, flt: Double, dec: BigDecimal): ConnectionIO[Int] = {
         val sql =
-          fr"INSERT INTO" ++ frag(tbl) ++ fr0" (tiny, small, med, norm, big, dbl, flt, xct) values ($tiny, $small, $med, $norm, $big, $dbl, $flt, $dec)"
+          fr"INSERT INTO" ++ frag(tbl) ++ fr0" (tiny, small, norm, big, flt, xct) values ($tiny, $small, $norm, $big, $flt, $dec)"
 
         sql.update.run
       }
 
       harnessed() use { case (xa, ds, path, name) =>
         val setup = for {
-          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (tiny TINYINT, small SMALLINT, med MEDIUMINT, norm INT, big BIGINT, dbl DOUBLE, flt FLOAT, xct DECIMAL(65, 30))").update.run
+          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (tiny TINYINT, small SMALLINT, norm INT, big BIGINT, flt FLOAT, xct DECIMAL(38, 10))").update.run
 
           _ <- insert(name,
-            -128,
+            0,
             -32768,
-            -8388608,
             -2147483648,
             -9223372036854775808L,
             -1.7976931348623157E+308,
-            -3.40282E+38f,
-            BigDecimal("-99999999999999999999999999999999999.9999999999999999999999999999"))
+            BigDecimal("-9999999999999999999999999999.9999999999"))
 
           _ <- insert(name,
-            127,
+            255,
             32767,
-            8388607,
             2147483647,
             9223372036854775807L,
             1.7976931348623157E+308,
-            3.40282E+38f,
-            BigDecimal("99999999999999999999999999999999999.9999999999999999999999999999"))
+            BigDecimal("9999999999999999999999999999.9999999999"))
         } yield ()
 
         (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
           val expected = List(
             obj(
-              "tiny" -> rLong(-128L),
+              "tiny" -> rLong(0L),
               "small" -> rLong(-32768L),
-              "med" -> rLong(-8388608L),
               "norm" -> rLong(-2147483648L),
               "big" -> rLong(-9223372036854775808L),
-              "dbl" -> rDouble(-1.7976931348623157E+308),
-              "flt" -> rDouble(-3.40282E+38),
-              "xct" -> rNum(BigDecimal("-99999999999999999999999999999999999.9999999999999999999999999999"))),
+              "flt" -> rDouble(-1.7976931348623157E+308),
+              "xct" -> rNum(BigDecimal("-9999999999999999999999999999.9999999999"))),
             obj(
-              "tiny" -> rLong(127L),
+              "tiny" -> rLong(255L),
               "small" -> rLong(32767L),
-              "med" -> rLong(8388607L),
               "norm" -> rLong(2147483647L),
               "big" -> rLong(9223372036854775807L),
-              "dbl" -> rDouble(1.7976931348623157E+308),
-              "flt" -> rDouble(3.40282E+38),
-              "xct" -> rNum(BigDecimal("99999999999999999999999999999999999.9999999999999999999999999999"))))
+              "flt" -> rDouble(1.7976931348623157E+308),
+              "xct" -> rNum(BigDecimal("9999999999999999999999999999.9999999999"))))
 
           results must containTheSameElementsAs(expected)
         }
       }
     }
+  /*
 
     // TIME | DATE | TIMESTAMP | DATETIME | YEAR
     "temporal" >> {
