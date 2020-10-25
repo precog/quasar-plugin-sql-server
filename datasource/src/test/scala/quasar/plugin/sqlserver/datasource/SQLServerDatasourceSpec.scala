@@ -225,73 +225,12 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
         }
       }
     }
-
-    "json" >> {
-      harnessed() use { case (xa, ds, path, name) =>
-        val js1 = """{"foo": 1, "bar": [2, 3]}"""
-
-        val setup = for {
-          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (js JSON)").update.run
-          _ <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (js) VALUES ($js1), ('false')").update.run
-        } yield ()
-
-        (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
-          val parsed = results flatMap { rv =>
-            (rField1("js").composePrism(rString))
-              .getOption(rv)
-              .flatMap(_.parseOption)
-              .toList
-          }
-
-          val expected = List(
-            Json("foo" := 1, "bar" := List(2, 3)),
-            jFalse)
-
-          parsed must containTheSameElementsAs(expected)
-        }
-      }
-    }
-
-    "set" >> {
-      harnessed() use { case (xa, ds, path, name) =>
-        val setup = for {
-          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (st SET('foo', 'bar', 'baz'))").update.run
-          _ <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (st) VALUES ('foo,baz'), ('bar'), ('')").update.run
-        } yield ()
-
-        (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
-          val expected = List(
-            obj("st" -> rString("foo,baz")),
-            obj("st" -> rString("bar")),
-            obj("st" -> rString("")))
-
-          results must containTheSameElementsAs(expected)
-        }
-      }
-    }
-
-    "enum" >> {
-      harnessed() use { case (xa, ds, path, name) =>
-        val setup = for {
-          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (en ENUM('red', 'green', 'blue'))").update.run
-          _ <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (en) VALUES ('green'), ('green'), ('blue')").update.run
-        } yield ()
-
-        (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
-          val expected = List(
-            obj("en" -> rString("green")),
-            obj("en" -> rString("green")),
-            obj("en" -> rString("blue")))
-
-          results must containTheSameElementsAs(expected)
-        }
-      }
-    }
+    */
 
     "empty table returns empty results" >> {
       harnessed() use { case (xa, ds, path, name) =>
         val setup = for {
-          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (en ENUM('red', 'green', 'blue'), ts TIMESTAMP(6), n INT, d DOUBLE, x LONGTEXT)").update.run
+          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (ts TIME(6), n INT, f FLOAT, x DATE)").update.run
         } yield ()
 
         (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
@@ -299,6 +238,5 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
         }
       }
     }
-  */
   }
 }
