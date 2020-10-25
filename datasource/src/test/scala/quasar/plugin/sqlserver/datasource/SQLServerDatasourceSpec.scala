@@ -69,40 +69,21 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
     def obj(assocs: (String, RValue)*): RValue =
       rObject(Map(assocs: _*))
 
-    //"foo" >> {
-    //  harnessed() use { case (xa, _, __, name) =>
-    //    println(s"name: $name")
-    //    val setup = for {
-    //      x <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (b BIT)").update.run
-    //      y <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1), (0)").update.run
-    //    } yield {
-    //      println(s"x: $x")
-    //      println(s"y: $y")
-    //      ()
-    //    }
-    //    setup.transact(xa) >> IO(ok)
-    //  }
-    //}
-
     "boolean" >> {
       harnessed() use { case (xa, ds, path, name) =>
-        println(s"name: $name")
-
         val setup = for {
           x <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (b BIT)").update.run
           y <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1)").update.run
         } yield ()
 
-        // TODO what do we do about the implicit schema?
         // TODO should this be returning true and false, and not 0 and 1?
-        (setup.transact(xa) >> loadRValues(ds, ResourcePath.root() / ResourceName("dbo") / ResourceName(name))) map { results =>
+        (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
           val expected = List(rBoolean(true), rBoolean(false)).map(b => obj("b" -> b))
           results must containTheSameElementsAs(expected)
         }
       }
     }
 
-  /*
     "string" >> {
       harnessed() use { case (xa, ds, path, name) =>
         val setup = for {
@@ -113,12 +94,13 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
         (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
           val expected = List(
             obj("c" -> rString("abcde"), "vc" -> rString("fghij"), "txt" -> rString("klmnopqrs")),
-            obj("c" -> rString("foo"), "vc" -> rString("bar"), "txt" -> rString("baz")))
+            obj("c" -> rString("foo  "), "vc" -> rString("bar"), "txt" -> rString("baz")))
 
           results must containTheSameElementsAs(expected)
         }
       }
     }
+  /*
 
     // TINYINT | SMALLINT | MEDIUMINT | INTEGER | BIGINT | DOUBLE | FLOAT | DECIMAL
     "number" >> {

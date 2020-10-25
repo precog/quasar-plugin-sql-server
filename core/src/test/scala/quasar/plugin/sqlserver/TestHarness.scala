@@ -48,8 +48,6 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
 
   def TestUrl(db: Option[String]): String =
     s"jdbc:sqlserver://localhost:1433${db.map(";database=" + _).getOrElse("")};user=SA;password=<YourStrong@Passw0rd>"
-    //"jdbc:sqlserver://localhost:1433;user=SA;password=%3CYourStrong%40Passw0rd%3E;database=TestDB"
-    //"jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=TestDB"
 
   def TestXa(jdbcUrl: String): Resource[IO, Transactor[IO]] =
     Resource.make(IO(Executors.newSingleThreadExecutor()))(p => IO(p.shutdown)) map { ex =>
@@ -59,27 +57,23 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
         Blocker.liftExecutionContext(ExecutionContext.fromExecutorService(ex)))
     }
 
-  def beforeAll(): Unit = {
-    val url = TestUrl(None)
-    println(s"url: $url")
+  def beforeAll(): Unit =
     TestXa(TestUrl(None))
       .use((frag(s"IF DB_ID (N'$TestDb') IS NOT NULL DROP DATABASE $TestDb").update.run >>
         frag(s"CREATE DATABASE $TestDb").update.run).transact(_))
       .void
       .unsafeRunSync
-  }
 
   def table(xa: Transactor[IO]): Resource[IO, (ResourcePath, String)] =
     Resource.make(
-      IO(s"dest_spec_${Random.alphanumeric.take(6).mkString}"))(
-      name => IO(()))//frag(s"DROP TABLE IF EXISTS $name").update.run.transact(xa).void)
-      .map(n => (ResourcePath.root() / ResourceName(n), n))
+        IO(s"dest_spec_${Random.alphanumeric.take(6).mkString}"))(
+        name => frag(s"DROP TABLE IF EXISTS $name").update.run.transact(xa).void)
+      .map(n => (ResourcePath.root() / ResourceName("dbo") / ResourceName(n), n))
 
   def tableHarness(jdbcUrl: String = TestUrl(Some(TestDb)))
       : Resource[IO, (Transactor[IO], ResourcePath, String)] =
     for {
       xa <- TestXa(jdbcUrl)
-      _ = println(s"db url: $jdbcUrl")
       (path, name) <- table(xa)
     } yield (xa, path, name)
 }
