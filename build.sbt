@@ -1,4 +1,4 @@
-ThisBuild / crossScalaVersions := Seq("2.12.10")
+ThisBuild / crossScalaVersions := Seq("2.12.11")
 ThisBuild / scalaVersion := (ThisBuild / crossScalaVersions).value.head
 
 ThisBuild / githubRepository := "quasar-plugin-sql-server"
@@ -10,6 +10,11 @@ ThisBuild / scmInfo := Some(ScmInfo(
   "scm:git@github.com:precog/quasar-plugin-sql-server.git"))
 
 ThisBuild / publishAsOSSProject := true
+
+ThisBuild / githubWorkflowBuildPreamble +=
+  WorkflowStep.Run(
+    List("docker-compose up -d mssql"),
+    name = Some("Start mssql container"))
 
 lazy val quasarVersion =
   Def.setting[String](managedVersions.value("precog-quasar"))
