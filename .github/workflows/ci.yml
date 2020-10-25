@@ -29,7 +29,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.12.10]
+        scala: [2.12.11]
         java: [adopt@1.8, graalvm8@20.1.0]
     runs-on: ${{ matrix.os }}
     steps:
@@ -123,7 +123,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.12.10]
+        scala: [2.12.11]
         java: [adopt@1.8]
     runs-on: ${{ matrix.os }}
     steps:
@@ -174,22 +174,22 @@ jobs:
           path: ~/.sbt
           key: ${{ runner.os }}-sbt-cache-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/build.properties') }}-${{ hashFiles('.versions.json') }}
 
-      - name: Download target directory 'target' (2.12.10)
+      - name: Download target directory 'target' (2.12.11)
         uses: actions/download-artifact@v1
         with:
-          name: target-${{ matrix.os }}-2.12.10-${{ matrix.java }}-target
+          name: target-${{ matrix.os }}-2.12.11-${{ matrix.java }}-target
           path: target
 
-      - name: Download target directory 'datasource/target' (2.12.10)
+      - name: Download target directory 'datasource/target' (2.12.11)
         uses: actions/download-artifact@v1
         with:
-          name: target-${{ matrix.os }}-2.12.10-${{ matrix.java }}-datasource_target
+          name: target-${{ matrix.os }}-2.12.11-${{ matrix.java }}-datasource_target
           path: datasource/target
 
-      - name: Download target directory 'core/target' (2.12.10)
+      - name: Download target directory 'core/target' (2.12.11)
         uses: actions/download-artifact@v1
         with:
-          name: target-${{ matrix.os }}-2.12.10-${{ matrix.java }}-core_target
+          name: target-${{ matrix.os }}-2.12.11-${{ matrix.java }}-core_target
           path: core/target
 
       - name: Download target directory 'project/target'
@@ -213,7 +213,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.12.10]
+        scala: [2.12.11]
         java: [adopt@1.8]
     runs-on: ${{ matrix.os }}
     steps:
@@ -240,4 +240,3 @@ jobs:
           git config --global user.email "bot@precog.com"
           git config --global user.name "Precog Bot"
           /tmp/sdmerge $GITHUB_REPOSITORY $PR_NUMBER
-
