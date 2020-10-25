@@ -90,11 +90,12 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
 
         val setup = for {
           x <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (b BIT)").update.run
-          y <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1), (0)").update.run
+          y <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1)").update.run
         } yield ()
 
+        // TODO what do we do about the implicit schema?
         (setup.transact(xa) >> loadRValues(ds, ResourcePath.root() / ResourceName("dbo") / ResourceName(name))) map { results =>
-          val expected = List(rLong(1), rLong(0)).map(b => obj("b" -> b))
+          val expected = List(rBoolean(true), rBoolean(false)).map(b => obj("b" -> b))
           results must containTheSameElementsAs(expected)
         }
       }

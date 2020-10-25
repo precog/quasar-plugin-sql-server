@@ -70,16 +70,15 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
   }
 
   def discoverableTableTypes(log: Logger): Option[ConnectionIO[NonEmptySet[TableType]]] =
-    None
-    //Some(for {
-    //  catalog <- HC.getCatalog
-    //  rs <- HC.getMetaData(FDMD.getTableTypes)
-    //  names <- FC.embed(rs, HRS.build[SortedSet, String])
-    //  _ <- FC.delay(log.debug(s"AVAILABLE TABLE TYPES: ${names.toList.mkString(", ")}"))
-    //  pruned = names.filterNot(n => n == "SYSTEM TABLE" || n == "SYSTEM VIEW")
-    //  default = NonEmptySet.of("TABLE", "VIEW")
-    //  discoverable = NonEmptySet.fromSet(pruned) getOrElse default
-    //} yield discoverable.map(TableType(_)))
+    Some(for {
+      catalog <- HC.getCatalog
+      rs <- HC.getMetaData(FDMD.getTableTypes)
+      names <- FC.embed(rs, HRS.build[SortedSet, String])
+      _ <- FC.delay(log.debug(s"AVAILABLE TABLE TYPES: ${names.toList.mkString(", ")}"))
+      pruned = names.filterNot(n => n == "SYSTEM TABLE" || n == "SYSTEM VIEW")
+      default = NonEmptySet.of("TABLE", "VIEW")
+      discoverable = NonEmptySet.fromSet(pruned) getOrElse default
+    } yield discoverable.map(TableType(_)))
 
   def transactorConfig(config: DatasourceConfig)
       : Either[NonEmptyList[String], TransactorConfig] =
