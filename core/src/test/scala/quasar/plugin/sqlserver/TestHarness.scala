@@ -71,8 +71,9 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
 
   def table(xa: Transactor[IO]): Resource[IO, (ResourcePath, String)] =
     Resource.make(
+      //IO("foobar11"))(
       IO(s"dest_spec_${Random.alphanumeric.take(6).mkString}"))(
-      name => frag(s"DROP TABLE IF EXISTS $name").update.run.transact(xa).void)
+      name => IO(()))//frag(s"DROP TABLE IF EXISTS $name").update.run.transact(xa).void)
       .map(n => (ResourcePath.root() / ResourceName(n), n))
 
   def tableHarness(jdbcUrl: String = TestUrl(Some(TestDb)))

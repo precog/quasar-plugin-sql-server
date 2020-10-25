@@ -68,11 +68,16 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
       rObject(Map(assocs: _*))
 
     "foo" >> {
-      val db = "jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=TestDB"
-      tableHarness(db) use { case (xa, _, _) =>
+      //val db = "jdbc:sqlserver://localhost:1433;database=TestDB;user=SA;password=<YourStrong@Passw0rd>"
+      harnessed() use { case (xa, _, __, name) =>
+        println(s"name: $name")
+        val k = fr"CREATE TABLE" ++ Fragment.const(name) ++ fr0"(b BIT)"
+        println(s"k: ${name.getBytes().toList}")
         val setup = for {
-          x <- (fr"CREATE TABLE foobar5" ++ fr0" (b BIT)").update.run
-          y <- (fr"INSERT INTO foobar5" ++ fr0" (b) VALUES (0), (1), (0)").update.run
+          //x <- (fr"CREATE TABLE" ++ Fragment.const("dest_spec_SAiGxA") ++ fr0" (b BIT)").update.run
+          //y <- (fr"INSERT INTO" ++ Fragment.const("dest_spec_SAiGxA") ++ fr0" (b) VALUES (0), (1), (0)").update.run
+          x <- Fragment.const(s"CREATE TABLE $name (b BIT)").update.run
+          y <- Fragment.const(s"INSERT INTO $name (b) VALUES (0), (1), (0)").update.run
         } yield {
           println(s"x: $x")
           println(s"y: $y")
