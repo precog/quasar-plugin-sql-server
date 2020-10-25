@@ -6,9 +6,11 @@
 
 The MS SQL Server datasource plugin enables Quasar to load data from MS SQL Server. Most native column types are supported with the notable exception of `BINARY` variants.
 
+This plugin also enables connection to Azure SQL Database (Microsoft's hosted SQL Server).
+
 ### Datasource Configuration
 
-JSON configuration required to construct a MariaDB datasource.
+JSON configuration required to construct a MS SQL Server datasource.
 
 ```
 {
