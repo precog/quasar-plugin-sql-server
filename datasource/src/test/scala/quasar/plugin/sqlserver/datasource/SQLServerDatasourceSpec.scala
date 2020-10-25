@@ -21,6 +21,8 @@ import quasar.plugin.sqlserver.TestHarness
 import scala._, Predef._
 import java.time._
 
+import quasar.api.resource.ResourceName
+
 import argonaut._, Argonaut._
 
 import cats.effect.{IO, Resource}
@@ -91,9 +93,7 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
           y <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1), (0)").update.run
         } yield ()
 
-        //setup.transact(xa) >> IO(ok)
-
-        (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
+        (setup.transact(xa) >> loadRValues(ds, ResourcePath.root() / ResourceName("dbo") / ResourceName(name))) map { results =>
           val expected = List(rLong(1), rLong(0)).map(b => obj("b" -> b))
           results must containTheSameElementsAs(expected)
         }
