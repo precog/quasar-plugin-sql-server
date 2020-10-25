@@ -91,12 +91,12 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
           y <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1), (0)").update.run
         } yield ()
 
-        setup.transact(xa) >> IO(ok)
+        //setup.transact(xa) >> IO(ok)
 
-        //(setup.transact(xa) >> loadRValues(ds, path)) map { results =>
-        //  val expected = List(rLong(1), rLong(0)).map(b => obj("b" -> b))
-        //  results must containTheSameElementsAs(expected)
-        //}
+        (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
+          val expected = List(rLong(1), rLong(0)).map(b => obj("b" -> b))
+          results must containTheSameElementsAs(expected)
+        }
       }
     }
 
