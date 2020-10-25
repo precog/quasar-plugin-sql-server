@@ -94,6 +94,7 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
         } yield ()
 
         // TODO what do we do about the implicit schema?
+        // TODO should this be returning true and false, and not 0 and 1?
         (setup.transact(xa) >> loadRValues(ds, ResourcePath.root() / ResourceName("dbo") / ResourceName(name))) map { results =>
           val expected = List(rBoolean(true), rBoolean(false)).map(b => obj("b" -> b))
           results must containTheSameElementsAs(expected)
