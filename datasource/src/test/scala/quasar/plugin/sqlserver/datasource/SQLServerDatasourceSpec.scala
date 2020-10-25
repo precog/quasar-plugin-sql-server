@@ -21,10 +21,6 @@ import quasar.plugin.sqlserver.TestHarness
 import scala._, Predef._
 import java.time._
 
-import quasar.api.resource.ResourceName
-
-import argonaut._, Argonaut._
-
 import cats.effect.{IO, Resource}
 import cats.implicits._
 
@@ -76,7 +72,6 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
           y <- (fr"INSERT INTO" ++ frag(name) ++ fr0" (b) VALUES (0), (1)").update.run
         } yield ()
 
-        // TODO should this be returning true and false, and not 0 and 1?
         (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
           val expected = List(rBoolean(true), rBoolean(false)).map(b => obj("b" -> b))
           results must containTheSameElementsAs(expected)
@@ -153,38 +148,40 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
         }
       }
     }
-  /*
 
-    // TIME | DATE | TIMESTAMP | DATETIME | YEAR
+    // TIME | DATE | DATETIME | DATETIME2 | DATETIMEOFFSET | SMALLDATETIME
     "temporal" >> {
-      val minDate = LocalDate.parse("1000-01-01")
+      val minDate = LocalDate.parse("0001-01-01")
       val maxDate = LocalDate.parse("9999-12-31")
 
-      val minTime = LocalTime.parse("00:00:00")
-      val maxTime = LocalTime.parse("23:59:59.999999")
+      val minTime = LocalTime.parse("00:00:00.000000")
+      val maxTime = LocalTime.parse("23:59:59.000000")
 
-      val minDateTime = LocalDateTime.parse("1000-01-01T00:00:00.000000")
-      val maxDateTime = LocalDateTime.parse("9999-12-31T23:59:59.999999")
+      val minDateTime = LocalDateTime.parse("1753-01-01T00:00:00.000")
+      val maxDateTime = LocalDateTime.parse("9999-12-31T23:59:59.997")
 
-      val minTimestamp = LocalDateTime.parse("1970-01-01T00:00:01")
-      val maxTimestamp = LocalDateTime.parse("2038-01-19T03:14:07")
+      val minDateTime2 = LocalDateTime.parse("0001-01-01T00:00:00.000000")
+      val maxDateTime2 = LocalDateTime.parse("9999-12-31T23:59:59.999999")
 
-      val minYear = 1901
-      val maxYear = 2155
+      val minDateTimeOffset = OffsetDateTime.parse("1000-01-01T00:00:00.000000-14:00")
+      val maxDateTimeOffset = OffsetDateTime.parse("9999-12-31T23:59:59.999999+14:00")
 
-      def insert(tbl: String, lt: LocalTime, ld: LocalDate, ts: LocalDateTime, dt: LocalDateTime, y: Int): ConnectionIO[Int] = {
+      val minSmallDateTime = LocalDateTime.parse("1900-01-01T00:00:00")
+      val maxSmallDateTime = LocalDateTime.parse("2079-06-06T23:59:00")
+
+      def insert(tbl: String, lt: LocalTime, ld: LocalDate, dt: LocalDateTime, dt2: LocalDateTime, dto: OffsetDateTime, sdt: LocalDateTime): ConnectionIO[Int] = {
         val sql =
-          fr"INSERT INTO" ++ frag(tbl) ++ fr0" (lt, ld, ts, dt, y) values ($lt, $ld, $ts, $dt, $y)"
+          fr"INSERT INTO" ++ frag(tbl) ++ fr0" (lt, ld, dt, dt2, dto, sdt) values ($lt, $ld, $dt, $dt2, $dto, $sdt)"
 
         sql.update.run
       }
 
       harnessed() use { case (xa, ds, path, name) =>
         val setup = for {
-          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (lt TIME(6), ld DATE, ts TIMESTAMP(6), dt DATETIME(6), y YEAR)").update.run
+          _ <- (fr"CREATE TABLE" ++ frag(name) ++ fr0" (lt TIME(6), ld DATE, dt DATETIME, dt2 DATETIME2(6), dto DATETIMEOFFSET(6), sdt SMALLDATETIME)").update.run
 
-          _ <- insert(name, minTime, minDate, minTimestamp, minDateTime, minYear)
-          _ <- insert(name, maxTime, maxDate, maxTimestamp, maxDateTime, maxYear)
+          _ <- insert(name, minTime, minDate, minDateTime, minDateTime2, minDateTimeOffset, minSmallDateTime)
+          _ <- insert(name, maxTime, maxDate, maxDateTime, maxDateTime2, maxDateTimeOffset, maxSmallDateTime)
         } yield ()
 
         (setup.transact(xa) >> loadRValues(ds, path)) map { results =>
@@ -192,20 +189,23 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
             obj(
               "lt" -> rLocalTime(minTime),
               "ld" -> rLocalDate(minDate),
-              "ts" -> rLocalDateTime(minTimestamp),
               "dt" -> rLocalDateTime(minDateTime),
-              "y" -> rLong(minYear.toLong)),
+              "dt2" -> rLocalDateTime(minDateTime2),
+              "dto" -> rOffsetDateTime(minDateTimeOffset),
+              "sdt" -> rLocalDateTime(minSmallDateTime)),
             obj(
               "lt" -> rLocalTime(maxTime),
               "ld" -> rLocalDate(maxDate),
-              "ts" -> rLocalDateTime(maxTimestamp),
               "dt" -> rLocalDateTime(maxDateTime),
-              "y" -> rLong(maxYear.toLong)))
+              "dt2" -> rLocalDateTime(maxDateTime2),
+              "dto" -> rOffsetDateTime(maxDateTimeOffset),
+              "sdt" -> rLocalDateTime(maxSmallDateTime)))
 
           results must containTheSameElementsAs(expected)
         }
       }
     }
+  /*
 
     "inet6" >> {
       harnessed() use { case (xa, ds, path, name) =>

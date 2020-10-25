@@ -29,6 +29,7 @@ import quasar.plugin.jdbc.datasource.{unsupportedColumnTypeMsg, ColumnNum, RValu
 
 object SQLServerRValueColumn extends RValueColumn {
   import java.sql.Types._
+  import microsoft.sql.Types.DATETIMEOFFSET
 
   def isSupported(sqlType: SqlType, sqlServerType: VendorType): Boolean =
     SupportedSqlTypes(sqlType)
@@ -66,6 +67,9 @@ object SQLServerRValueColumn extends RValueColumn {
 
       case TIMESTAMP =>
         unlessNull(rs.getObject(col, classOf[LocalDateTime]))(RValue.rLocalDateTime(_))
+
+      case DATETIMEOFFSET =>
+        unlessNull(rs.getObject(col, classOf[OffsetDateTime]))(RValue.rOffsetDateTime(_))
 
       case _ => unsupported
     }
