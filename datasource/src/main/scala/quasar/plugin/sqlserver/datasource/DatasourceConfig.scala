@@ -24,16 +24,13 @@ import argonaut._, Argonaut._
 
 final case class DatasourceConfig(connectionConfig: ConnectionConfig) {
   def isSensitive: Boolean =
-    scala.Predef.???
-    //connectionConfig.isSensitive
+    connectionConfig.isSensitive
 
   def mergeSensitive(other: DatasourceConfig): DatasourceConfig =
-    scala.Predef.???
-    //copy(connectionConfig = connectionConfig.mergeSensitive(other.connectionConfig))
+    copy(connectionConfig = connectionConfig.mergeSensitive(other.connectionConfig))
 
   def sanitized: DatasourceConfig =
-    scala.Predef.???
-    //copy(connectionConfig = connectionConfig.sanitized)
+    copy(connectionConfig = connectionConfig.sanitized)
 }
 
 object DatasourceConfig {
