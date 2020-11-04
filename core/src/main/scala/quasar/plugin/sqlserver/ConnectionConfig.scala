@@ -104,7 +104,7 @@ object ConnectionConfig {
       "lockTimeout",
       "packetSize",
       "responseBuffering", // adaptive by default
-      "selectMethod",
+      //"selectMethod", // allowed because Azure Synapse does not support 'cursor', and only supports 'direct'
       "sendTemporalDataTypesAsStringForBulkCopy",
       "sendTimeAsDatetime",
       "serverPreparedStatementDiscardThreshold",
