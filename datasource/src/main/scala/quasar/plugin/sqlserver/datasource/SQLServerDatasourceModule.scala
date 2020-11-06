@@ -107,7 +107,7 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
 
   def kind: DatasourceType = DatasourceType("sql-server", 1L)
 
-  def migrateConfig[F[_]: Sync](config: argonaut.Json)
+  def migrateConfig[F[_]: Sync](from: Long, to: Long, config: argonaut.Json)
       : F[Either[ConfigurationError[Json], Json]] =
     Sync[F].pure(Right(config))
 
