@@ -48,6 +48,15 @@ object DriverParameter {
   val DelayLoadingJobs: DriverParameter =
     DriverParameter("delayLoadingJobs", "true")
 
+  val SendTemporalDataTypesAsStringForBulkCopy: DriverParameter =
+    DriverParameter("sendTemporalDataTypesAsStringForBulkCopy", "true")
+
+  val SendTimeAsDatetime: DriverParameter =
+    DriverParameter("sendTimeAsDateTime", "true")
+
+  val LoginTimeout: DriverParameter =
+    DriverParameter("loginTimeout", "60")
+
   implicit val driverPropertyEq: Eq[DriverParameter] =
     Eq.by(dp => (dp.name, dp.value))
 
