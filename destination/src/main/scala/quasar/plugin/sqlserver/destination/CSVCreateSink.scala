@@ -14,11 +14,27 @@
  * limitations under the License.
  */
 
+/*
+ * Copyright 2020 Precog Data
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package quasar.plugin.sqlserver.destination
 
 import quasar.plugin.sqlserver._
 
-import scala._, Predef._
+import scala._
 
 import java.io.InputStream
 
@@ -35,7 +51,7 @@ import com.microsoft.sqlserver.jdbc.{
 import doobie._
 import doobie.implicits._
 
-import fs2.Pipe
+import fs2.{Pipe, Stream}
 
 import org.slf4s.Logger
 
@@ -67,7 +83,7 @@ private[destination] object CsvCreateSink {
         .updateWithLogHandler(logHandler)
         .run
 
-    def createTable(ifNotExists: Boolean) = {
+    def createTable(ifNotExists: Boolean): ConnectionIO[Int] = {
       val stmt = if (ifNotExists) fr"CREATE TABLE IF NOT EXISTS" else fr"CREATE TABLE"
 
       (stmt ++ objFragment ++ fr0" " ++ columnSpecs(cols))
@@ -75,46 +91,54 @@ private[destination] object CsvCreateSink {
         .run
     }
 
-    def loadCsv(bytes: InputStream): ConnectionIO[Unit] = {
-      val res: cats.effect.Resource[F, Unit] =
-        xa.connect(xa.kernel) map { connection =>
-          val bulkCopy = new SQLServerBulkCopy(connection)
-          val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", true)
-          val bulkOptions = new SQLServerBulkCopyOptions()
+    // TODO SQLServerBulkCopy#close()
+    // TODO date time things
+    // TODO other csv escaping?
+    def loadCsv(bytes: InputStream, connection: java.sql.Connection)
+        : ConnectionIO[Unit] =
+      for {
+        bulkCopy <- FC.delay(new SQLServerBulkCopy(connection))
+        bulkCSV <- FC.delay(new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", true))
+        bulkOptions <- FC.delay(new SQLServerBulkCopyOptions())
 
-          bulkOptions.setBulkCopyTimeout(0) // no timeout
-          bulkOptions.setTableLock(true)
-          bulkOptions.setUseInternalTransaction(false)
-          bulkOptions.setBatchSize(128)
+        _ <- FC.delay(bulkOptions.setBulkCopyTimeout(0)) // no timeout
+        _ <- FC.delay(bulkOptions.setTableLock(true))
+        _ <- FC.delay(bulkOptions.setUseInternalTransaction(false)) // transactions are managed externally
+        _ <- FC.delay(bulkOptions.setBatchSize(512))
 
-          bulkCopy.setDestinationTableName(objFragment.toString) // TODO proper toString
-          bulkCopy.setBulkCopyOptions(bulkOptions)
-          //bulkCopy.addColumnMapping("", "") // TODO add column mappings?
-          bulkCopy.writeToServer(bulkCSV)
+        _ <- FC.delay(bulkCopy.setDestinationTableName(objFragment.toString)) // TODO proper toString
+        _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
+        //_ <- FC.delay(bulkCopy.addColumnMapping("", "")) // TODO add column mappings?
+
+        _ <- FC.delay(bulkCopy.writeToServer(bulkCSV))
+        _ <- FC.delay(bulkCopy.close())
+      } yield ()
+
+    def doLoad(bytes: InputStream, connection: java.sql.Connection)
+        : ConnectionIO[Unit] =
+      for {
+        _ <- writeMode match {
+          case WriteMode.Create =>
+            createTable(ifNotExists = false)
+
+          case WriteMode.Replace =>
+            dropTableIfExists >> createTable(ifNotExists = false)
+
+          case WriteMode.Truncate =>
+            createTable(ifNotExists = true) >> truncateTable
+
+          case WriteMode.Append =>
+            createTable(ifNotExists = true)
         }
 
-      ???
-    }
+        _ <- loadCsv(bytes, connection)
+      } yield ()
 
-    def doLoad(bytes: InputStream) = for {
-      _ <- writeMode match {
-        case WriteMode.Create =>
-          createTable(ifNotExists = false)
-
-        case WriteMode.Replace =>
-          dropTableIfExists >> createTable(ifNotExists = false)
-
-        case WriteMode.Truncate =>
-          createTable(ifNotExists = true) >> truncateTable
-
-        case WriteMode.Append =>
-          createTable(ifNotExists = true)
+    bytes => {
+      Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
+        bytes.through(fs2.io.toInputStream[F]).evalMap(doLoad(_, connection).transact(xa))
       }
-
-      _ <- loadCsv(bytes)
-    } yield ()
-
-    _.through(fs2.io.toInputStream[F]).evalMap(doLoad(_).transact(xa))
+    }
   }
 
   ////
