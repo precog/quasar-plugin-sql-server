@@ -16,8 +16,6 @@
 
 package quasar.plugin.sqlserver.destination
 
-import quasar.plugin.sqlserver._
-
 import scala._, Predef._
 import scala.concurrent.duration._
 
