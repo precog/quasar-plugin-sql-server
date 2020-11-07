@@ -34,7 +34,7 @@ package quasar.plugin.sqlserver.destination
 
 import quasar.plugin.sqlserver._
 
-import scala._
+import scala._, Predef._
 
 import java.io.InputStream
 
@@ -45,7 +45,8 @@ import cats.implicits._
 import com.microsoft.sqlserver.jdbc.{
   SQLServerBulkCopy,
   SQLServerBulkCopyOptions,
-  SQLServerBulkCSVFileRecord
+  SQLServerBulkCSVFileRecord,
+  SQLServerConnection
 }
 
 import doobie._
@@ -136,7 +137,8 @@ private[destination] object CsvCreateSink {
 
     bytes => {
       Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
-        bytes.through(fs2.io.toInputStream[F]).evalMap(doLoad(_, connection).transact(xa))
+        val unwrapped = connection.unwrap(classOf[SQLServerConnection])
+        bytes.through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
       }
     }
   }
