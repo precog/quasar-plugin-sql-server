@@ -41,7 +41,7 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
     logger: Logger)
     extends Destination[F] {
 
-  //import SQLServerType._
+  import SQLServerType._
 
   type Type = SQLServerType
   type TypeId = SQLServerTypeId
@@ -67,52 +67,44 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
     def satisfied(t: TypeId, ts: TypeId*) =
       TypeCoercion.Satisfied(NonEmptyList(t, ts.toList))
 
-    ???
-    //tpe match {
-    //  case ColumnType.Boolean => satisfied(BOOLEAN)
+    tpe match {
+      case ColumnType.Boolean => satisfied(BINARY)
 
-    //  case ColumnType.LocalTime => satisfied(TIME)
-    //  case ColumnType.LocalDate => satisfied(DATE)
-    //  case ColumnType.LocalDateTime => satisfied(DATETIME)
+      case ColumnType.LocalTime => satisfied(TIME)
+      case ColumnType.LocalDate => satisfied(DATE)
+      case ColumnType.LocalDateTime => satisfied(DATETIME, DATETIME2, SMALLDATETIME)
+      case ColumnType.OffsetDateTime => satisfied(DATETIMEOFFSET)
 
-    //  case ColumnType.Number =>
-    //    satisfied(
-    //      DOUBLE,
-    //      INT,
-    //      DECIMAL,
-    //      BIGINT,
-    //      MEDIUMINT,
-    //      SMALLINT,
-    //      TINYINT,
-    //      YEAR,
-    //      FLOAT)
+      case ColumnType.OffsetTime =>
+        TypeCoercion.Unsatisfied(List(ColumnType.LocalTime), None)
 
-    //  case ColumnType.String =>
-    //    satisfied(
-    //      TEXT,
-    //      VARCHAR,
-    //      MEDIUMTEXT,
-    //      LONGTEXT,
-    //      CHAR,
-    //      VARBINARY,
-    //      BINARY,
-    //      BLOB,
-    //      MEDIUMBLOB,
-    //      LONGBLOB,
-    //      TINYTEXT,
-    //      TINYBLOB)
+      case ColumnType.OffsetDate =>
+        TypeCoercion.Unsatisfied(List(ColumnType.LocalDate), None)
 
-    //  case ColumnType.OffsetTime =>
-    //    TypeCoercion.Unsatisfied(List(ColumnType.LocalTime), None)
+      case ColumnType.Number =>
+        satisfied(
+          BIGINT,
+          DECIMAL,
+          FLOAT,
+          INT,
+          MONEY,
+          NUMERIC,
+          REAL,
+          SMALLINT,
+          SMALLMONEY,
+          TINYINT)
 
-    //  case ColumnType.OffsetDate =>
-    //    TypeCoercion.Unsatisfied(List(ColumnType.LocalDate), None)
+      case ColumnType.String =>
+        satisfied(
+          CHAR,
+          NCHAR,
+          NVARCHAR,
+          TEXT,
+          UNIQUEIDENTIFIER,
+          VARCHAR)
 
-    //  case ColumnType.OffsetDateTime =>
-    //    TypeCoercion.Unsatisfied(List(ColumnType.LocalDateTime), None)
-
-    //  case _ => TypeCoercion.Unsatisfied(Nil, None)
-    //}
+      case _ => TypeCoercion.Unsatisfied(Nil, None)
+    }
   }
 
   def construct(id: TypeId): Either[Type, Constructor[Type]] =
