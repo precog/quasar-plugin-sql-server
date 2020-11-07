@@ -44,7 +44,7 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
   val DefaultConnectionMaxConcurrency: Int = 16
   val DefaultConnectionMaxLifetime: FiniteDuration = 5.minutes
 
-  val destinationType = DestinationType("sqlserver", 1L)
+  val destinationType = DestinationType("sql-server", 1L)
 
   def sanitizeDestinationConfig(config: Json): Json =
     config.as[DestinationConfig].toOption.fold(jEmptyObject)(_.sanitized.asJson)
@@ -58,9 +58,6 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
       maxLifetime = cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
 
       connectionString = cc.jdbcUrl
-        //ConnectionConfig.Optics.parameters
-        //  .modify(DriverParameter.EnableLocalInfile :: _)(cc)
-        //  .jdbcUrl
 
       jdbcUrl <-
         Either.catchNonFatal(URI.create(connectionString)).leftMap(_ => NonEmptyList.one(
