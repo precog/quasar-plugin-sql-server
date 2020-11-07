@@ -72,7 +72,7 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
       case ColumnType.LocalTime => satisfied(TIME)
       case ColumnType.LocalDate => satisfied(DATE)
-      case ColumnType.LocalDateTime => satisfied(DATETIME, DATETIME2, SMALLDATETIME)
+      case ColumnType.LocalDateTime => satisfied(DATETIME2, DATETIME, SMALLDATETIME)
       case ColumnType.OffsetDateTime => satisfied(DATETIMEOFFSET)
 
       case ColumnType.OffsetTime =>
@@ -83,10 +83,10 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
       case ColumnType.Number =>
         satisfied(
-          BIGINT,
-          DECIMAL,
           FLOAT,
           INT,
+          DECIMAL,
+          BIGINT,
           MONEY,
           NUMERIC,
           REAL,
@@ -96,12 +96,12 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
       case ColumnType.String =>
         satisfied(
+          TEXT,
+          VARCHAR,
           CHAR,
           NCHAR,
           NVARCHAR,
-          TEXT,
-          UNIQUEIDENTIFIER,
-          VARCHAR)
+          UNIQUEIDENTIFIER)
 
       case _ => TypeCoercion.Unsatisfied(Nil, None)
     }
