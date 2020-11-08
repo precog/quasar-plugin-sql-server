@@ -78,8 +78,7 @@ private[destination] object CsvCreateSink {
     def createTable(ifNotExists: Boolean): ConnectionIO[Int] = {
       val stmt = if (ifNotExists) fr"CREATE TABLE IF NOT EXISTS" else fr"CREATE TABLE"
 
-      //(stmt ++ objFragment ++ fr0" " ++ columnSpecs(cols))
-      (stmt ++ Fragment.const0("[nope]") ++ fr0" " ++ columnSpecs(cols))
+      (stmt ++ objFragment ++ fr0" " ++ columnSpecs(cols))
         .updateWithLogHandler(logHandler)
         .run
     }
@@ -121,27 +120,6 @@ private[destination] object CsvCreateSink {
 
       ConcurrentEffect[F].bracket(acquire)(use)(release)
     }
-
-      //  try {
-      //    cols.zipWithIndex.toList foreach {
-      //      case ((_, tpe), idx) => // TODO use tpe
-      //        bulkCSV.addColumnMetadata(idx + 1, "", java.sql.Types.INTEGER, 0, 0)
-      //    }
-      //    logger.debug(s"Added column metadata for $unsafeObj")
-
-      //    bulkCopy.setDestinationTableName(unsafeObj)
-      //    logger.debug(s"Set destination table name to $unsafeObj")
-
-      //    bulkCopy.writeToServer(bulkCSV)
-      //    logger.debug(s"Wrote bulk CSV to $unsafeObj")
-
-      //    bulkCopy.close()
-      //    logger.debug(s"Closed bulk CSV copy for $unsafeObj")
-      //  } catch {
-      //    // TODO catch this exception within the push so that the push errors
-      //    case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
-      //  }
-      //}
 
     def prepareTable: ConnectionIO[Unit] =
       for {
