@@ -71,7 +71,7 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
       TypeCoercion.Satisfied(NonEmptyList(t, ts.toList))
 
     tpe match {
-      case ColumnType.Boolean => satisfied(BINARY)
+      case ColumnType.Boolean => satisfied(BIT)
 
       case ColumnType.LocalTime => satisfied(TIME)
       case ColumnType.LocalDate => satisfied(DATE)

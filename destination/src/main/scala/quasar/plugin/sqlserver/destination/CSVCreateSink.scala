@@ -34,6 +34,7 @@ import com.microsoft.sqlserver.jdbc.{
 }
 
 import doobie._
+import doobie.enum.JdbcType
 import doobie.implicits._
 
 import fs2.{Pipe, Stream}
@@ -99,8 +100,9 @@ private[destination] object CsvCreateSink {
       def use: Utilities => F[Unit] = {
         case (bulkCopy, bulkCSV) => ConcurrentEffect[F] delay {
           cols.zipWithIndex.toList foreach {
-            case ((_, tpe), idx) => // TODO use tpe
-              bulkCSV.addColumnMetadata(idx + 1, "", java.sql.Types.INTEGER, 0, 0)
+            case ((_, tpe), idx) =>
+              val (sqlTpe, precision, scale) = mapping(tpe)
+              bulkCSV.addColumnMetadata(idx + 1, "", sqlTpe.toInt, precision, scale)
           }
           logger.debug(s"Added column metadata for $unsafeObj")
 
@@ -155,4 +157,15 @@ private[destination] object CsvCreateSink {
       cols
         .map { case (n, t) => Fragment.const(n.forSql) ++ t.asSql }
         .intercalate(fr","))
+
+  // TODO the rest and error when no matched, can put error in F
+  private def mapping(sqlServerType: SQLServerType): (JdbcType, Int, Int) =
+    sqlServerType match {
+      case SQLServerType.BIGINT => (JdbcType.BigInt, 0, 0)
+      case SQLServerType.BIT => (JdbcType.Bit, 0, 0)
+      case SQLServerType.CHAR(length) => (JdbcType.Char, length, 0)
+      case SQLServerType.DATE => (JdbcType.Date, 0, 0)
+      case SQLServerType.DATETIME => (JdbcType.Timestamp, 0, 0)
+      case SQLServerType.INT => (JdbcType.Integer, 0, 0)
+    }
 }

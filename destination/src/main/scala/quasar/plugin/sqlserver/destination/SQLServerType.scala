@@ -34,7 +34,7 @@ sealed abstract class SQLServerType(spec: String) extends Product with Serializa
 object SQLServerType {
   case object BIGINT extends SQLServerTypeId.SelfIdentified("BIGINT", 0)
 
-  case object BINARY extends SQLServerTypeId.SelfIdentified("BINARY", 1)
+  case object BIT extends SQLServerTypeId.SelfIdentified("BIT", 1)
 
   final case class CHAR(length: Int) extends SQLServerType(s"CHAR($length)")
   case object CHAR extends SQLServerTypeId.HigherKinded(2) {
@@ -159,7 +159,7 @@ object SQLServerTypeId {
   val allIds: Set[SQLServerTypeId] =
     Set(
       BIGINT,
-      BINARY,
+      BIT,
       CHAR,
       DATE,
       DATETIME,
