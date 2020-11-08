@@ -100,7 +100,7 @@ private[destination] object CsvCreateSink {
         : ConnectionIO[Unit] =
       for {
         bulkCopy <- FC.delay(new SQLServerBulkCopy(connection))
-        bulkCSV <- FC.delay(new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", true))
+        bulkCSV <- FC.delay(new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false))
         bulkOptions <- FC.delay(new SQLServerBulkCopyOptions())
 
         _ <- FC.delay(bulkOptions.setBulkCopyTimeout(0)) // no timeout

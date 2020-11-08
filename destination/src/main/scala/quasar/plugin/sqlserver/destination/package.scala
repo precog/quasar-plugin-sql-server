@@ -21,7 +21,6 @@ import scala.Some
 import quasar.connector.render.RenderConfig
 
 package object destination {
-  // TODO
   val SQLServerCsvConfig: RenderConfig.Csv =
     RenderConfig.Csv(
       includeHeader = false,
