@@ -152,11 +152,15 @@ private[destination] object CsvCreateSink {
         : F[Unit] = ConcurrentEffect[F].delay {
       val bulkCopy = new SQLServerBulkCopy(connection)
       val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
+      val stmt: java.sql.Statement = connection.createStatement()
       try {
+        stmt.executeUpdate("DROP TABLE [dbo].[intdatanew2]")
+        stmt.executeUpdate("CREATE TABLE [dbo].[intdatanew2] ([data1] INT, [data2] INT)")
+
         bulkCSV.addColumnMetadata(1, "", java.sql.Types.INTEGER, 0, 0)
         bulkCSV.addColumnMetadata(2, "", java.sql.Types.INTEGER, 0, 0)
 
-        bulkCopy.setDestinationTableName("dbo.intdatanew")
+        bulkCopy.setDestinationTableName("dbo.intdatanew2")
 
         bulkCopy.writeToServer(bulkCSV)
         logger.debug(s"Wrote bulk CSV to server.")
