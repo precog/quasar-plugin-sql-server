@@ -120,16 +120,18 @@ private[destination] object CsvCreateSink {
         _ <- FC delay {
           cols.zipWithIndex.toList foreach {
             case ((name, tpe), idx) =>
-              bulkCSV.addColumnMetadata(idx + 1, name.forSql, doobie.enum.JdbcType.Double.toInt, 10, 10)
+              val sql = name.forSql
+              bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Double.toInt, 10, 10)
+              bulkCopy.addColumnMapping(sql, sql)
           }
         }
-        _ <- FC.delay(logger.info(s"Set bulk copy options."))
+        _ <- FC.delay(logger.debug(s"Set bulk copy options."))
 
         _ <- FC.delay(bulkCopy.writeToServer(bulkCSV))
-        _ <- FC.delay(logger.info(s"Wrote bulk CSV to server."))
+        _ <- FC.delay(logger.debug(s"Wrote bulk CSV to server."))
 
         _ <- FC.delay(bulkCopy.close())
-        _ <- FC.delay(logger.info(s"Closed bulk copy."))
+        _ <- FC.delay(logger.debug(s"Closed bulk copy."))
       } yield ()
 
     def doLoad(bytes: InputStream, connection: java.sql.Connection)
