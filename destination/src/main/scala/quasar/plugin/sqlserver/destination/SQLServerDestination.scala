@@ -37,7 +37,7 @@ import quasar.plugin.jdbc.destination.{JdbcCreateSink, WriteMode}
 
 private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: MonadResourceErr: Timer](
     writeMode: WriteMode,
-    schema: String,
+    schema: HI,
     xa: Transactor[F],
     logger: Logger)
     extends Destination[F] {

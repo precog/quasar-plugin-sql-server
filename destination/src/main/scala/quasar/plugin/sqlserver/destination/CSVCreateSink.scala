@@ -14,22 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright 2020 Precog Data
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package quasar.plugin.sqlserver.destination
 
 import quasar.plugin.sqlserver._
@@ -62,7 +46,7 @@ import quasar.plugin.jdbc.destination.WriteMode
 private[destination] object CsvCreateSink {
   def apply[F[_]: ConcurrentEffect](
       writeMode: WriteMode,
-      schema: String,
+      schema: HI,
       xa: Transactor[F],
       logger: Logger)(
       obj: Either[HI, (HI, HI)],
@@ -72,11 +56,11 @@ private[destination] object CsvCreateSink {
     val logHandler = Slf4sLogHandler(logger)
 
     val objFragment = obj.fold(
-      t => fr0"[$schema]." ++ Fragment.const0(t.forSql),
+      t => Fragment.const0(schema.forSql) ++ fr0"." ++ Fragment.const0(t.forSql),
       { case (d, t) => Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) })
 
     val unsafeObj = obj.fold(
-      t => schema ++ "." ++ t.unsafeString,
+      t => schema.unsafeString ++ "." ++ t.unsafeString,
       { case (d, t) => d.unsafeString ++ "." ++ t.unsafeString })
 
     def dropTableIfExists =
