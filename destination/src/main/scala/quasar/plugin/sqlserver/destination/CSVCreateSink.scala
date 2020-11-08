@@ -153,7 +153,7 @@ private[destination] object CsvCreateSink {
       val bulkCopy = new SQLServerBulkCopy(connection)
       val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
       val stmt: java.sql.Statement = connection.createStatement()
-      val name = "intdatanew3"
+      val name = "intdatanew4"
       try {
         stmt.executeUpdate(s"DROP TABLE IF EXISTS [dbo].[$name]")
         stmt.executeUpdate(s"CREATE TABLE [dbo].[$name] ([data1] INT, [data2] INT)")
@@ -197,17 +197,17 @@ private[destination] object CsvCreateSink {
       //val connectionURL = "jdbc:sqlserver://localhost:1433;user=SA;password=%3CYourStrong%40Passw0rd%3E;database=precogtest"
       //val connectionURL = "jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=precogtest"
 
-      val url = "https://gist.githubusercontent.com/alissapajer/5329c1b32d068a9e81c35a4f40618730/raw/6cc0e8d7f0ad9644c121923a483d257fd5cc642a/ints.csv"
-      val inputStream = (new java.net.URL(url)).openStream()
+      //val url = "https://gist.githubusercontent.com/alissapajer/5329c1b32d068a9e81c35a4f40618730/raw/6cc0e8d7f0ad9644c121923a483d257fd5cc642a/ints.csv"
+      //val inputStream = (new java.net.URL(url)).openStream()
 
       //val conn = java.sql.DriverManager.getConnection(connectionURL)
 
       //bytes.drain ++ Stream.eval(loadCsv2(inputStream, conn))
 
-      bytes.drain ++ (Stream.resource(xa.connect(xa.kernel)) evalMap { connection =>
+      Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
         val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-        loadCsv2(inputStream, unwrapped)
-      })
+        bytes.through(fs2.io.toInputStream[F]).evalMap(loadCsv2(_, unwrapped))
+      }
     }
 
     //bytes => {
