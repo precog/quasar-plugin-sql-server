@@ -4,9 +4,9 @@
 
 ## Datasource
 
-The MS SQL Server datasource plugin enables Quasar to load data from MS SQL Server. Most native column types are supported with the notable exception of `BINARY` variants.
+The MS SQL Server plugins enable Quasar to load data from and to MS SQL Server. Most native column types are supported with the notable exception of `BINARY` variants.
 
-This plugin also enables connection to Azure SQL Database (Microsoft's hosted SQL Server).
+This plugin also enables connection to Azure SQL Database (Microsoft's hosted SQL Server) and Azure Synapse (formerly Azure SQL DW).
 
 ### Datasource Configuration
 
@@ -20,6 +20,25 @@ JSON configuration required to construct a MS SQL Server datasource.
 
 * `connection`: A [connection configuration](#connection-configuration) object.
 
+### Destination Configuration
+
+JSON configuration required to construct a MS SQL Server destination.
+
+```
+{
+  "connection": <connection-configuration>,
+  "writeMode": "create" | "replace" | "truncate" | "append",
+  "schema": <schema>,
+}
+```
+
+* `connection`: A [connection configuration](#connection-configuration) object.
+* `writeMode`: Indicates how to handle loading data into an existing table
+  * `create`: prevent loading data into an existing table, erroring if it exists
+  * `replace`: `DROP` and recreate an existing table prior to loading data
+  * `truncate`: `TRUNCATE` an existing table prior to loading data
+  * `append`: appends to an existing table, creating it if it doesn't exist
+* `schema`: OPTIONAL. The name of the schema to load data into. If omitted, defaults to 'dbo'.
 
 ## Connection Configuration
 
