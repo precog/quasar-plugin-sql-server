@@ -158,8 +158,8 @@ private[destination] object CsvCreateSink {
       val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
       val stmt: java.sql.Statement = connection.createStatement()
       try {
-        stmt.executeUpdate(s"DROP TABLE IF EXISTS [dbo].[$unsafeObj]")
-        stmt.executeUpdate(s"CREATE TABLE [dbo].[$unsafeObj] ([data1] INT, [data2] INT)")
+        stmt.executeUpdate(s"DROP TABLE IF EXISTS [dbo].$unsafeObj")
+        stmt.executeUpdate(s"CREATE TABLE [dbo].$unsafeObj ([data1] INT, [data2] INT)")
 
         cols.zipWithIndex.toList foreach {
           case ((_, tpe), idx) => // TODO use tpe
