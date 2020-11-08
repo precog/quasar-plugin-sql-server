@@ -95,6 +95,7 @@ private[destination] object CsvCreateSink {
     // TODO SQLServerBulkCopy#close()
     // TODO date time things
     // TODO other csv escaping?
+    // TODO SQLServerBulkCSVFileRecord.setEscapeColumnDelimitersCSV(boolean) ?
     def loadCsv(bytes: InputStream, connection: java.sql.Connection)
         : ConnectionIO[Unit] =
       for {
@@ -110,6 +111,13 @@ private[destination] object CsvCreateSink {
         _ <- FC.delay(bulkCopy.setDestinationTableName(objFragment.toString)) // TODO proper toString
         _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
         //_ <- FC.delay(bulkCopy.addColumnMapping("", "")) // TODO add column mappings?
+        //
+        _ <- FC delay {
+          cols.zipWithIndex.toList foreach {
+            case ((name, tpe), idx) =>
+              bulkCSV.addColumnMetadata(idx, name.toString, doobie.enum.JdbcType.Double.toInt, 10, 10)
+          }
+        }
 
         _ <- FC.delay(bulkCopy.writeToServer(bulkCSV))
         _ <- FC.delay(bulkCopy.close())
