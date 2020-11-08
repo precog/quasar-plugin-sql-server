@@ -70,13 +70,15 @@ private[destination] object CsvCreateSink {
 
     val logHandler = Slf4sLogHandler(logger)
 
+    // [dbo] is the default schema
+    // TODO always set schema in config with default if none is provided
     val objFragment = obj.fold(
-      t => fr0"[dbo]." ++ Fragment.const0(t.forSql), // [dbo] is the default schema
+      t => fr0"[dbo]." ++ Fragment.const0(t.forSql),
       { case (d, t) => Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) })
 
-    val unsafeObjNoHygiene = obj.fold(
-      t => t.forSql.drop(1).dropRight(1),
-      { case (d, t) => d.forSql.drop(1).dropRight(1) ++ "." ++ t.forSql.drop(1).dropRight(1) })
+    val unsafeObj = obj.fold(
+      t => t.unsafeString,
+      { case (d, t) => d.unsafeString ++ "." ++ t.unsafeString })
 
     def dropTableIfExists =
       (fr"DROP TABLE IF EXISTS" ++ objFragment)
@@ -98,6 +100,7 @@ private[destination] object CsvCreateSink {
 
     // TODO date time things
     // TODO other csv escaping?
+    // TODO set SQLServerBulkCopyOptions ?
     def loadCsv(bytes: InputStream, connection: java.sql.Connection): F[Unit] =
       ConcurrentEffect[F].delay {
         val bulkCopy = new SQLServerBulkCopy(connection)
@@ -110,7 +113,7 @@ private[destination] object CsvCreateSink {
               bulkCSV.addColumnMetadata(idx + 1, "", java.sql.Types.INTEGER, 0, 0)
           }
 
-          bulkCopy.setDestinationTableName(unsafeObjNoHygiene)
+          bulkCopy.setDestinationTableName(unsafeObj)
 
           bulkCopy.writeToServer(bulkCSV)
           logger.debug(s"Wrote bulk CSV to server.")
