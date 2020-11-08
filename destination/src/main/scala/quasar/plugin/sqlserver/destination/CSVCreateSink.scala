@@ -71,12 +71,8 @@ private[destination] object CsvCreateSink {
     val logHandler = Slf4sLogHandler(logger)
 
     val objFragment = obj.fold(
-      t => fr0"[dbo]." ++ Fragment.const0(t.forSql),
+      t => fr0"[dbo]." ++ Fragment.const0(t.forSql), // [dbo] is the default schema
       { case (d, t) => Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) })
-
-    val unsafeObj = obj.fold(
-      t => t.forSql,
-      { case (d, t) => d.forSql ++ "." ++ t.forSql })
 
     val unsafeObjNoHygiene = obj.fold(
       t => t.forSql.drop(1).dropRight(1),
@@ -102,85 +98,31 @@ private[destination] object CsvCreateSink {
 
     // TODO date time things
     // TODO other csv escaping?
-    def loadCsv(bytes: InputStream, connection: java.sql.Connection)
-        : ConnectionIO[Unit] =
-      for {
-        bulkCopy <- FC.delay(new SQLServerBulkCopy(connection))
-        bulkCSV <- FC.delay(new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false))
-        bulkOptions <- FC.delay(new SQLServerBulkCopyOptions())
+    def loadCsv(bytes: InputStream, connection: java.sql.Connection): F[Unit] =
+      ConcurrentEffect[F].delay {
+        val bulkCopy = new SQLServerBulkCopy(connection)
+        val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
 
-        _ <- FC.delay(bulkOptions.setBulkCopyTimeout(0)) // no timeout
-        // _ <- FC.delay(bulkOptions.setTableLock(true))
-        _ <- FC.delay(bulkOptions.setUseInternalTransaction(false)) // transactions are managed externally
-        //_ <- FC.delay(bulkOptions.setBatchSize(512))
+        try {
 
-        _ <- FC.delay(bulkCopy.setDestinationTableName("dbo.intdatanew"))//unsafeObj.drop(1).dropRight(1)))
-        //_ <- FC.delay(logger.debug(s"Set destination table name to ${unsafeObj.drop(1).dropRight(1)}."))
-
-        _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
-        //_ <- FC.delay(bulkCopy.addColumnMapping("data", "data"))
-        _ <- FC.delay(logger.debug(s"Set bulk copy options."))
-
-        _ <- FC.delay(bulkCSV.addColumnMetadata(1, "", java.sql.Types.INTEGER, 0, 0))
-        _ <- FC.delay(bulkCSV.addColumnMetadata(2, "", java.sql.Types.INTEGER, 0, 0))
-
-        _ <- FC.delay(bulkCSV.setEscapeColumnDelimitersCSV(true))
-        _ <- FC.delay(logger.debug(s"Set bulk CSV escape column delimiters."))
-
-        //_ <- FC delay {
-        //  cols.zipWithIndex.toList foreach {
-        //    case ((name, tpe), idx) =>
-        //      val sql = name.forSql.drop(1).dropRight(1) // TODO move to where we do hygiene
-        //      //bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Double.toInt, 53, 0)
-        //      //bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Integer.toInt, 0, 0)
-        //      //logger.debug(s"Added column metadata and mapping for $sql.")
-        //      //bulkCopy.addColumnMapping(sql, sql)
-        //      //logger.debug(s"Added column mapping for $sql.")
-        //  }
-        //}
-
-        _ <- FC.delay {
-          try {
-            bulkCopy.writeToServer(bulkCSV)
-          } catch {
-            case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
+          cols.zipWithIndex.toList foreach {
+            case ((_, tpe), idx) => // TODO use tpe
+              bulkCSV.addColumnMetadata(idx + 1, "", java.sql.Types.INTEGER, 0, 0)
           }
+
+          bulkCopy.setDestinationTableName(unsafeObjNoHygiene)
+
+          bulkCopy.writeToServer(bulkCSV)
+          logger.debug(s"Wrote bulk CSV to server.")
+
+          bulkCopy.close()
+          logger.debug(s"Closed bulk copy.")
+        } catch {
+          case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
         }
-        _ <- FC.delay(logger.debug(s"Wrote bulk CSV to server."))
-
-        _ <- FC.delay(bulkCopy.close())
-        _ <- FC.delay(logger.debug(s"Closed bulk copy."))
-      } yield ()
-
-    def loadCsv2(bytes: InputStream, connection: java.sql.Connection)
-        : F[Unit] = ConcurrentEffect[F].delay {
-        //: ConnectionIO[Unit] = FC.delay {
-      val bulkCopy = new SQLServerBulkCopy(connection)
-      val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
-      val stmt: java.sql.Statement = connection.createStatement()
-      try {
-        //stmt.executeUpdate(s"DROP TABLE IF EXISTS [dbo].$unsafeObj")
-        //stmt.executeUpdate(s"CREATE TABLE [dbo].$unsafeObj ([data1] INT, [data2] INT)")
-
-        cols.zipWithIndex.toList foreach {
-          case ((_, tpe), idx) => // TODO use tpe
-            bulkCSV.addColumnMetadata(idx + 1, "", java.sql.Types.INTEGER, 0, 0)
-        }
-
-        bulkCopy.setDestinationTableName(unsafeObjNoHygiene)
-
-        bulkCopy.writeToServer(bulkCSV)
-        logger.debug(s"Wrote bulk CSV to server.")
-
-        bulkCopy.close()
-        logger.debug(s"Closed bulk copy.")
-      } catch {
-        case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
       }
-    }
 
-    //def doLoad(bytes: InputStream, connection: java.sql.Connection)
-    def doLoad: ConnectionIO[Unit] =
+    def prepareTable: ConnectionIO[Unit] =
       for {
         _ <- writeMode match {
           case WriteMode.Create =>
@@ -195,50 +137,16 @@ private[destination] object CsvCreateSink {
           case WriteMode.Append =>
             createTable(ifNotExists = true)
         }
-
-        //_ <- loadCsv2(bytes, connection)
       } yield ()
 
     bytes => {
       Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
         val unwrapped = connection.unwrap(classOf[SQLServerConnection])
 
-        Stream.eval(doLoad.transact(xa)) ++
-          bytes.through(fs2.io.toInputStream[F]).evalMap(loadCsv2(_, unwrapped))
+        Stream.eval(prepareTable.transact(xa)) ++
+          bytes.through(fs2.io.toInputStream[F]).evalMap(loadCsv(_, unwrapped))
       }
     }
-
-      //val connectionURL = "jdbc:sqlserver://localhost:1433;user=SA;password=%3CYourStrong%40Passw0rd%3E;database=precogtest"
-      //val connectionURL = "jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=precogtest"
-
-      //val url = "https://gist.githubusercontent.com/alissapajer/5329c1b32d068a9e81c35a4f40618730/raw/6cc0e8d7f0ad9644c121923a483d257fd5cc642a/ints.csv"
-      //val inputStream = (new java.net.URL(url)).openStream()
-
-      //val conn = java.sql.DriverManager.getConnection(connectionURL)
-
-      //bytes.drain ++ Stream.eval(loadCsv2(inputStream, conn))
-
-    //bytes => {
-    //  val url = "https://gist.githubusercontent.com/alissapajer/5329c1b32d068a9e81c35a4f40618730/raw/6cc0e8d7f0ad9644c121923a483d257fd5cc642a/ints.csv"
-    //  val inputStream = (new java.net.URL(url)).openStream()
-
-    //  bytes.drain ++ (Stream.resource(xa.connect(xa.kernel)) evalMap { connection =>
-    //    val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-    //    doLoad(inputStream, unwrapped).transact(xa)
-    //  })
-    //}
-
-      //Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
-      //  val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-      //  bytes
-      //    .chunkN(100)
-      //    .flatMap(Stream.chunk)
-      //    .observe(_.map(b => println(s"bytes: $b")))
-      //    .through(fs2.io.toInputStream[F])
-      //    .evalMap(doLoad(_, unwrapped).transact(xa))
-      //  //(bytes.take(2) ++ Stream.emit(0x0a: Byte)).chunkN(100).flatMap(Stream.chunk).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
-      //  //(bytes \* ++Stream.emit('\r'.toByte) ++ Stream.emit('\n'.toByte)*\).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
-      //}
   }
 
   ////
