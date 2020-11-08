@@ -78,7 +78,7 @@ private[destination] object CsvCreateSink {
     def createTable(ifNotExists: Boolean): ConnectionIO[Int] = {
       val stmt = if (ifNotExists) fr"CREATE TABLE IF NOT EXISTS" else fr"CREATE TABLE"
 
-      (stmt ++ objFragment ++ fr0" " ++ columnSpecs(cols))
+      (stmt ++ objFragment ++ fr0"nope" ++ fr0" " ++ columnSpecs(cols))
         .updateWithLogHandler(logHandler)
         .run
     }
@@ -86,12 +86,18 @@ private[destination] object CsvCreateSink {
     // TODO date time things
     // TODO other csv escaping?
     // TODO set SQLServerBulkCopyOptions ?
-    def loadCsv(bytes: InputStream, connection: java.sql.Connection): F[Unit] =
-      ConcurrentEffect[F].delay {
+    def loadCsv(bytes: InputStream, connection: java.sql.Connection): F[Unit] = {
+      type Utilities = (SQLServerBulkCopy, SQLServerBulkCSVFileRecord)
+
+      val acquire: F[Utilities] = ConcurrentEffect[F] delay {
         val bulkCopy = new SQLServerBulkCopy(connection)
         val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
 
-        try {
+        (bulkCopy, bulkCSV)
+      }
+
+      val use: Utilities => F[Unit] = {
+        case (bulkCopy, bulkCSV) => ConcurrentEffect[F] delay {
           cols.zipWithIndex.toList foreach {
             case ((_, tpe), idx) => // TODO use tpe
               bulkCSV.addColumnMetadata(idx + 1, "", java.sql.Types.INTEGER, 0, 0)
@@ -103,14 +109,38 @@ private[destination] object CsvCreateSink {
 
           bulkCopy.writeToServer(bulkCSV)
           logger.debug(s"Wrote bulk CSV to $unsafeObj")
-
-          bulkCopy.close()
-          logger.debug(s"Closed bulk CSV copy for $unsafeObj")
-        } catch {
-          // TODO catch this exception within the push so that the push errors
-          case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
         }
       }
+
+      val release: Utilities => F[Unit] = {
+        case (bulkCopy, _) => ConcurrentEffect[F] delay {
+          bulkCopy.close()
+        }
+      }
+
+      ConcurrentEffect[F].bracket(acquire)(use)(release)
+    }
+
+      //  try {
+      //    cols.zipWithIndex.toList foreach {
+      //      case ((_, tpe), idx) => // TODO use tpe
+      //        bulkCSV.addColumnMetadata(idx + 1, "", java.sql.Types.INTEGER, 0, 0)
+      //    }
+      //    logger.debug(s"Added column metadata for $unsafeObj")
+
+      //    bulkCopy.setDestinationTableName(unsafeObj)
+      //    logger.debug(s"Set destination table name to $unsafeObj")
+
+      //    bulkCopy.writeToServer(bulkCSV)
+      //    logger.debug(s"Wrote bulk CSV to $unsafeObj")
+
+      //    bulkCopy.close()
+      //    logger.debug(s"Closed bulk CSV copy for $unsafeObj")
+      //  } catch {
+      //    // TODO catch this exception within the push so that the push errors
+      //    case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
+      //  }
+      //}
 
     def prepareTable: ConnectionIO[Unit] =
       for {

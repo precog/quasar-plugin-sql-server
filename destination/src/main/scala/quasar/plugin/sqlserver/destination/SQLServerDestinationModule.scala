@@ -83,6 +83,7 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
     val schema = config.schema.getOrElse("dbo")
     val schemaHI = SQLServerHygiene.hygienicIdent(Ident(schema))
 
+    // TODO test different schema
     (new SQLServerDestination[F](config.writeMode, schemaHI, transactor, log): Destination[F])
       .asRight[InitError]
       .pure[Resource[F, ?]]
