@@ -118,10 +118,10 @@ private[destination] object CsvCreateSink {
         _ <- FC delay {
           cols.zipWithIndex.toList foreach {
             case ((name, tpe), idx) =>
-              val sql = name.forSql
+              val sql = name.forSql.drop(1).dropRight(1)
               bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Double.toInt, 10, 10)
               bulkCopy.addColumnMapping(sql, sql)
-              logger.debug(s"Added column metadat and mapping for $sql.")
+              logger.debug(s"Added column metadata and mapping for $sql.")
           }
         }
         _ <- FC.delay(logger.debug(s"Set bulk copy options."))
