@@ -153,19 +153,18 @@ private[destination] object CsvCreateSink {
       val bulkCopy = new SQLServerBulkCopy(connection)
       val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
       val stmt: java.sql.Statement = connection.createStatement()
+      val name = "intdatanew3"
       try {
-        stmt.executeUpdate("DROP TABLE IF EXISTS [dbo].[intdatanew2]")
-        stmt.executeUpdate("CREATE TABLE [dbo].[intdatanew2] ([data1] INT, [data2] INT)")
+        stmt.executeUpdate(s"DROP TABLE IF EXISTS [dbo].[$name]")
+        stmt.executeUpdate(s"CREATE TABLE [dbo].[$name] ([data1] INT, [data2] INT)")
 
         bulkCSV.addColumnMetadata(1, "", java.sql.Types.INTEGER, 0, 0)
         bulkCSV.addColumnMetadata(2, "", java.sql.Types.INTEGER, 0, 0)
 
-        bulkCopy.setDestinationTableName("dbo.intdatanew2")
+        bulkCopy.setDestinationTableName(s"dbo.$name")
 
         bulkCopy.writeToServer(bulkCSV)
         logger.debug(s"Wrote bulk CSV to server.")
-        //connection.commit()
-        //logger.debug(s"Committed CSV.")
 
         bulkCopy.close()
         logger.debug(s"Closed bulk copy.")
