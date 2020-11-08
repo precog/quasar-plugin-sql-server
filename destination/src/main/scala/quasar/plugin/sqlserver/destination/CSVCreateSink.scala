@@ -74,6 +74,10 @@ private[destination] object CsvCreateSink {
       t => Fragment.const0(t.forSql),
       { case (d, t) => Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) })
 
+    val unsafeObj = obj.fold(
+      t => t.forSql,
+      { case (d, t) => d.forSql ++ "." ++ t.forSql })
+
     def dropTableIfExists =
       (fr"DROP TABLE IF EXISTS" ++ objFragment)
         .updateWithLogHandler(logHandler)
@@ -108,14 +112,14 @@ private[destination] object CsvCreateSink {
         _ <- FC.delay(bulkOptions.setUseInternalTransaction(false)) // transactions are managed externally
         _ <- FC.delay(bulkOptions.setBatchSize(512))
 
-        _ <- FC.delay(bulkCopy.setDestinationTableName(objFragment.toString)) // TODO proper toString
+        _ <- FC.delay(bulkCopy.setDestinationTableName(unsafeObj))
         _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
         //_ <- FC.delay(bulkCopy.addColumnMapping("", "")) // TODO add column mappings?
         //
         _ <- FC delay {
           cols.zipWithIndex.toList foreach {
             case ((name, tpe), idx) =>
-              bulkCSV.addColumnMetadata(idx + 1, name.toString, doobie.enum.JdbcType.Double.toInt, 10, 10)
+              bulkCSV.addColumnMetadata(idx + 1, name.forSql, doobie.enum.JdbcType.Double.toInt, 10, 10)
           }
         }
 
