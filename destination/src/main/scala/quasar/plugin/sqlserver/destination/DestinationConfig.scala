@@ -18,8 +18,7 @@ package quasar.plugin.sqlserver.destination
 
 import quasar.plugin.sqlserver.ConnectionConfig
 
-import scala.StringContext
-import java.lang.String
+import scala._, Predef._
 
 import argonaut._, Argonaut._
 
@@ -30,6 +29,7 @@ import quasar.plugin.jdbc.destination.WriteMode
 
 final case class DestinationConfig(
     connectionConfig: ConnectionConfig,
+    schema: Option[String],
     writeMode: WriteMode) {
 
   def jdbcUrl: String =
@@ -41,11 +41,11 @@ final case class DestinationConfig(
 
 object DestinationConfig {
   implicit val destinationConfigCodecJson: CodecJson[DestinationConfig] =
-    casecodec2(DestinationConfig.apply, DestinationConfig.unapply)("connection", "writeMode")
+    casecodec3(DestinationConfig.apply, DestinationConfig.unapply)("connection", "schema", "writeMode")
 
   implicit val destinationConfigEq: Eq[DestinationConfig] =
-    Eq.by(c => (c.connectionConfig, c.writeMode))
+    Eq.by(c => (c.connectionConfig, c.schema, c.writeMode))
 
   implicit val destinationConfigShow: Show[DestinationConfig] =
-    Show.show(c => s"DestinationConfig(${c.connectionConfig.show}, ${c.writeMode.show})")
+    Show.show(c => s"DestinationConfig(${c.connectionConfig.show}, ${c.schema}, ${c.writeMode.show})")
 }

@@ -78,7 +78,7 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
       pushPull: PushmiPullyu[F],
       log: Logger)
       : Resource[F, Either[InitError, Destination[F]]] =
-    (new SQLServerDestination[F](config.writeMode, transactor, log): Destination[F])
+    (new SQLServerDestination[F](config.writeMode, config.schema.getOrElse("dbo"), transactor, log): Destination[F])
       .asRight[InitError]
       .pure[Resource[F, ?]]
 }

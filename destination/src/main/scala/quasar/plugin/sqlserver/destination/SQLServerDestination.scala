@@ -37,6 +37,7 @@ import quasar.plugin.jdbc.destination.{JdbcCreateSink, WriteMode}
 
 private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: MonadResourceErr: Timer](
     writeMode: WriteMode,
+    schema: String,
     xa: Transactor[F],
     logger: Logger)
     extends Destination[F] {
@@ -50,7 +51,9 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
   val createSink: ResultSink.CreateSink[F, Type, Byte] = {
     val jdbcSink =
-      JdbcCreateSink[F, Type](SQLServerHygiene, logger)(CsvCreateSink(writeMode, xa, logger))
+      JdbcCreateSink[F, Type](
+        SQLServerHygiene, logger)(
+        CsvCreateSink(writeMode, schema, xa, logger))
 
     ResultSink.CreateSink((p, ts) => (SQLServerCsvConfig, jdbcSink(p, ts)))
   }

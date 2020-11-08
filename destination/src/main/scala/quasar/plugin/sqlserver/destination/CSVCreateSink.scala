@@ -62,6 +62,7 @@ import quasar.plugin.jdbc.destination.WriteMode
 private[destination] object CsvCreateSink {
   def apply[F[_]: ConcurrentEffect](
       writeMode: WriteMode,
+      schema: String,
       xa: Transactor[F],
       logger: Logger)(
       obj: Either[HI, (HI, HI)],
@@ -70,14 +71,12 @@ private[destination] object CsvCreateSink {
 
     val logHandler = Slf4sLogHandler(logger)
 
-    // [dbo] is the default schema
-    // TODO always set schema in config with default if none is provided
     val objFragment = obj.fold(
-      t => fr0"[dbo]." ++ Fragment.const0(t.forSql),
+      t => fr0"[$schema]." ++ Fragment.const0(t.forSql),
       { case (d, t) => Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) })
 
     val unsafeObj = obj.fold(
-      t => t.unsafeString,
+      t => schema ++ "." ++ t.unsafeString,
       { case (d, t) => d.unsafeString ++ "." ++ t.unsafeString })
 
     def dropTableIfExists =
