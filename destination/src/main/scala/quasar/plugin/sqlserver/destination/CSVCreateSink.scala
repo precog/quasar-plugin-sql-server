@@ -199,13 +199,19 @@ private[destination] object CsvCreateSink {
       } yield ()
 
     bytes => {
+      val connectionURL = "jdbc:sqlserver://localhost:1433;user=SA;password=%3CYourStrong%40Passw0rd%3E;database=precogtest"
+
       val url = "https://gist.githubusercontent.com/alissapajer/5329c1b32d068a9e81c35a4f40618730/raw/6cc0e8d7f0ad9644c121923a483d257fd5cc642a/ints.csv"
       val inputStream = (new java.net.URL(url)).openStream()
 
-      bytes.drain ++ (Stream.resource(xa.connect(xa.kernel)) evalMap { connection =>
-        val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-        loadCsv2(inputStream, unwrapped)
-      })
+      val conn = java.sql.DriverManager.getConnection(connectionURL)
+
+      bytes.drain ++ Stream.eval(loadCsv2(inputStream, conn))
+
+      //bytes.drain ++ (Stream.resource(xa.connect(xa.kernel)) evalMap { connection =>
+      //  val unwrapped = connection.unwrap(classOf[SQLServerConnection])
+      //  loadCsv2(inputStream, unwrapped)
+      //})
     }
 
     //bytes => {
