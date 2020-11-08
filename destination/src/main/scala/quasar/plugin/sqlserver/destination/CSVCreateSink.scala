@@ -85,11 +85,13 @@ private[destination] object CsvCreateSink {
         .updateWithLogHandler(logHandler)
         .run
 
+    // TODO test table truncate
     def truncateTable =
       (fr"TRUNCATE" ++ objFragment)
         .updateWithLogHandler(logHandler)
         .run
 
+    // TODO test table creation if not exists
     def createTable(ifNotExists: Boolean): ConnectionIO[Int] = {
       val stmt = if (ifNotExists) fr"CREATE TABLE IF NOT EXISTS" else fr"CREATE TABLE"
 
@@ -107,20 +109,22 @@ private[destination] object CsvCreateSink {
         val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
 
         try {
-
           cols.zipWithIndex.toList foreach {
             case ((_, tpe), idx) => // TODO use tpe
               bulkCSV.addColumnMetadata(idx + 1, "", java.sql.Types.INTEGER, 0, 0)
           }
+          logger.debug(s"Added column metadata for $unsafeObj")
 
           bulkCopy.setDestinationTableName(unsafeObj)
+          logger.debug(s"Set destination table name to $unsafeObj")
 
           bulkCopy.writeToServer(bulkCSV)
-          logger.debug(s"Wrote bulk CSV to server.")
+          logger.debug(s"Wrote bulk CSV to $unsafeObj")
 
           bulkCopy.close()
-          logger.debug(s"Closed bulk copy.")
+          logger.debug(s"Closed bulk CSV copy for $unsafeObj")
         } catch {
+          // TODO catch this exception within the push so that the push errors
           case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
         }
       }
