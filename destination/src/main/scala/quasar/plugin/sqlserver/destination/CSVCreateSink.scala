@@ -111,7 +111,7 @@ private[destination] object CsvCreateSink {
         //_ <- FC.delay(bulkOptions.setBatchSize(512))
 
         _ <- FC.delay(bulkCopy.setDestinationTableName("precogtest.intdata"))//unsafeObj.drop(1).dropRight(1)))
-        _ <- FC.delay(logger.debug(s"Set destination table name to ${unsafeObj.drop(1).dropRight(1)}."))
+        //_ <- FC.delay(logger.debug(s"Set destination table name to ${unsafeObj.drop(1).dropRight(1)}."))
 
         _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
         _ <- FC.delay(bulkCopy.addColumnMapping("data", "data"))
@@ -138,7 +138,7 @@ private[destination] object CsvCreateSink {
           try {
             bulkCopy.writeToServer(bulkCSV)
           } catch {
-            case (e: Exception) => logger.debug(s"got exception: ${e.getMessage}")
+            case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
           }
         }
         _ <- FC.delay(logger.debug(s"Wrote bulk CSV to server."))
@@ -170,7 +170,7 @@ private[destination] object CsvCreateSink {
     bytes => {
       Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
         val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-        (bytes ++ Stream.emit('\n'.toByte)).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
+        (bytes ++ Stream.emit('\r'.toByte) ++ Stream.emit('\n'.toByte)).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
       }
     }
   }
