@@ -98,7 +98,6 @@ private[destination] object CsvCreateSink {
 
     // TODO date time things
     // TODO other csv escaping?
-    // TODO SQLServerBulkCSVFileRecord.setEscapeColumnDelimitersCSV(boolean) ?
     def loadCsv(bytes: InputStream, connection: java.sql.Connection)
         : ConnectionIO[Unit] =
       for {
@@ -116,6 +115,9 @@ private[destination] object CsvCreateSink {
 
         _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
         _ <- FC.delay(logger.debug(s"Set bulk copy options."))
+
+        _ <- FC.delay(bulkCSV.setEscapeColumnDelimitersCSV(true))
+        _ <- FC.delay(logger.debug(s"Set bulk CSV escape column delimiters."))
 
         //_ <- FC delay {
         //  cols.zipWithIndex.toList foreach {
