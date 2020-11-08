@@ -172,10 +172,10 @@ private[destination] object CsvCreateSink {
       val url = "https://gist.githubusercontent.com/alissapajer/fcce3b53ff54fe16265e0623e693186e/raw/bfcdfb23a0473c7b8f2c808f8664b03a90b05d19/gistfile1.txt"
       val inputStream = (new java.net.URL(url)).openStream()
 
-      Stream.resource(xa.connect(xa.kernel)) evalMap { connection =>
+      bytes.drain ++ (Stream.resource(xa.connect(xa.kernel)) evalMap { connection =>
         val unwrapped = connection.unwrap(classOf[SQLServerConnection])
         doLoad(inputStream, unwrapped).transact(xa)
-      }
+      })
 
       //Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
       //  val unwrapped = connection.unwrap(classOf[SQLServerConnection])
