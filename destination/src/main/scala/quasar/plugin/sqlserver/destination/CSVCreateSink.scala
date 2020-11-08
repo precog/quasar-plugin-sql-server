@@ -157,7 +157,7 @@ private[destination] object CsvCreateSink {
       bulkOptions.setBulkCopyTimeout(60) // no timeout
       bulkOptions.setUseInternalTransaction(false) // transactions are managed externally
 
-      bulkCopy.setDestinationTableName("precogtest.dbo.intdatanew")
+      bulkCopy.setDestinationTableName("dbo.intdatanew")
 
       bulkCopy.setBulkCopyOptions(bulkOptions)
       logger.debug(s"Set bulk copy options.")
