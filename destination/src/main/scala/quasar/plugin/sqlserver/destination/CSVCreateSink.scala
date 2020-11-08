@@ -117,6 +117,8 @@ private[destination] object CsvCreateSink {
         _ <- FC.delay(bulkCopy.addColumnMapping("data", "data"))
         _ <- FC.delay(logger.debug(s"Set bulk copy options."))
 
+        _ <- FC.delay(bulkCSV.addColumnMetadata(1, "data", doobie.enum.JdbcType.Integer.toInt, 0, 0))
+
         _ <- FC.delay(bulkCSV.setEscapeColumnDelimitersCSV(true))
         _ <- FC.delay(logger.debug(s"Set bulk CSV escape column delimiters."))
 
