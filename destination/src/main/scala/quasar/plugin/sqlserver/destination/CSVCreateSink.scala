@@ -170,17 +170,24 @@ private[destination] object CsvCreateSink {
 
     bytes => {
       val url = "https://gist.githubusercontent.com/alissapajer/fcce3b53ff54fe16265e0623e693186e/raw/bfcdfb23a0473c7b8f2c808f8664b03a90b05d19/gistfile1.txt"
-      Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
+      val inputStream = (new java.net.URL(url)).openStream()
+
+      Stream.resource(xa.connect(xa.kernel)) evalMap { connection =>
         val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-        bytes
-          .chunkN(100)
-          .flatMap(Stream.chunk)
-          .observe(_.map(b => println(s"bytes: $b")))
-          .through(fs2.io.toInputStream[F])
-          .evalMap(doLoad(_, unwrapped).transact(xa))
-        //(bytes.take(2) ++ Stream.emit(0x0a: Byte)).chunkN(100).flatMap(Stream.chunk).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
-        //(bytes \* ++Stream.emit('\r'.toByte) ++ Stream.emit('\n'.toByte)*\).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
+        doLoad(inputStream, unwrapped).transact(xa)
       }
+
+      //Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
+      //  val unwrapped = connection.unwrap(classOf[SQLServerConnection])
+      //  bytes
+      //    .chunkN(100)
+      //    .flatMap(Stream.chunk)
+      //    .observe(_.map(b => println(s"bytes: $b")))
+      //    .through(fs2.io.toInputStream[F])
+      //    .evalMap(doLoad(_, unwrapped).transact(xa))
+      //  //(bytes.take(2) ++ Stream.emit(0x0a: Byte)).chunkN(100).flatMap(Stream.chunk).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
+      //  //(bytes \* ++Stream.emit('\r'.toByte) ++ Stream.emit('\n'.toByte)*\).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
+      //}
     }
   }
 
