@@ -89,14 +89,14 @@ private[destination] object CsvCreateSink {
     def loadCsv(bytes: InputStream, connection: java.sql.Connection): F[Unit] = {
       type Utilities = (SQLServerBulkCopy, SQLServerBulkCSVFileRecord)
 
-      val acquire: F[Utilities] = ConcurrentEffect[F] delay {
+      def acquire: F[Utilities] = ConcurrentEffect[F] delay {
         val bulkCopy = new SQLServerBulkCopy(connection)
         val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
 
         (bulkCopy, bulkCSV)
       }
 
-      val use: Utilities => F[Unit] = {
+      def use: Utilities => F[Unit] = {
         case (bulkCopy, bulkCSV) => ConcurrentEffect[F] delay {
           cols.zipWithIndex.toList foreach {
             case ((_, tpe), idx) => // TODO use tpe
@@ -112,7 +112,7 @@ private[destination] object CsvCreateSink {
         }
       }
 
-      val release: Utilities => F[Unit] = {
+      def release: Utilities => F[Unit] = {
         case (bulkCopy, _) => ConcurrentEffect[F] delay {
           bulkCopy.close()
         }
