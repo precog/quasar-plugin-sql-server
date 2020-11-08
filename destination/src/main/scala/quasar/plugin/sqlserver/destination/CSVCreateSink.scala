@@ -114,6 +114,7 @@ private[destination] object CsvCreateSink {
 
         _ <- FC.delay(bulkCopy.setDestinationTableName(unsafeObj))
         _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
+
         //_ <- FC.delay(bulkCopy.addColumnMapping("", "")) // TODO add column mappings?
         //
         _ <- FC delay {
@@ -122,9 +123,13 @@ private[destination] object CsvCreateSink {
               bulkCSV.addColumnMetadata(idx + 1, name.forSql, doobie.enum.JdbcType.Double.toInt, 10, 10)
           }
         }
+        _ <- FC.delay(logger.info(s"Set bulk copy options."))
 
         _ <- FC.delay(bulkCopy.writeToServer(bulkCSV))
+        _ <- FC.delay(logger.info(s"Wrote bulk CSV to server."))
+
         _ <- FC.delay(bulkCopy.close())
+        _ <- FC.delay(logger.info(s"Closed bulk copy."))
       } yield ()
 
     def doLoad(bytes: InputStream, connection: java.sql.Connection)
