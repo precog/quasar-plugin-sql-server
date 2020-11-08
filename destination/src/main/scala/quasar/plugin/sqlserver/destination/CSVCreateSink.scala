@@ -71,7 +71,7 @@ private[destination] object CsvCreateSink {
     val logHandler = Slf4sLogHandler(logger)
 
     val objFragment = obj.fold(
-      t => Fragment.const0(t.forSql),
+      t => fr0"[dbo]." ++ Fragment.const0(t.forSql),
       { case (d, t) => Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) })
 
     val unsafeObj = obj.fold(
