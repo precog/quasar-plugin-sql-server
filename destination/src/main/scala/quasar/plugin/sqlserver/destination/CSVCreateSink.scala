@@ -84,39 +84,48 @@ private[destination] object CsvCreateSink {
         .run
     }
 
-    // TODO date time things
-    // TODO other csv escaping?
-    // TODO set SQLServerBulkCopyOptions ?
+    // TODO date time formatting things
+    // TODO test double quotes - consider SQLServerBulkCSVFileRecord.setEscapeColumnDelimitersCSV(boolean)
     def loadCsv(bytes: InputStream, connection: java.sql.Connection): F[Unit] = {
-      type Utilities = (SQLServerBulkCopy, SQLServerBulkCSVFileRecord)
+      type Utilities = (SQLServerBulkCopy, SQLServerBulkCSVFileRecord, SQLServerBulkCopyOptions)
 
       def acquire: F[Utilities] = ConcurrentEffect[F] delay {
         val bulkCopy = new SQLServerBulkCopy(connection)
-        val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
+        val fileRecord = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
+        val copyOptions = new SQLServerBulkCopyOptions()
 
-        (bulkCopy, bulkCSV)
+        (bulkCopy, fileRecord, copyOptions)
       }
 
       def use: Utilities => F[Unit] = {
-        case (bulkCopy, bulkCSV) => ConcurrentEffect[F] delay {
+        case (bulkCopy, fileRecord, copyOptions) => ConcurrentEffect[F] delay {
           cols.zipWithIndex.toList foreach {
             case ((_, tpe), idx) =>
-              val (sqlTpe, precision, scale) = mapping(tpe)
-              bulkCSV.addColumnMetadata(idx + 1, "", sqlTpe.toInt, precision, scale)
+              val (sqlTpe, precision, scale) = toJdbcType(tpe)
+              fileRecord.addColumnMetadata(idx + 1, "", sqlTpe.toInt, precision, scale)
           }
           logger.debug(s"Added column metadata for $unsafeObj")
+
+          copyOptions.setBatchSize(512)
+          copyOptions.setUseInternalTransaction(false)
+          copyOptions.setTableLock(true)
+          copyOptions.setBulkCopyTimeout(0) // no time limit; the bulk copy will wait indefinitely
+          bulkCopy.setBulkCopyOptions(copyOptions)
+          logger.debug(s"Set copy options for $unsafeObj")
 
           bulkCopy.setDestinationTableName(unsafeObj)
           logger.debug(s"Set destination table name to $unsafeObj")
 
-          bulkCopy.writeToServer(bulkCSV)
+          bulkCopy.writeToServer(fileRecord)
           logger.debug(s"Wrote bulk CSV to $unsafeObj")
         }
       }
 
       def release: Utilities => F[Unit] = {
-        case (bulkCopy, _) => ConcurrentEffect[F] delay {
+        case (bulkCopy, fileRecord, _) => ConcurrentEffect[F] delay {
           bulkCopy.close()
+          fileRecord.close()
+          logger.debug(s"Closed bulk copy for $unsafeObj")
         }
       }
 
@@ -158,8 +167,7 @@ private[destination] object CsvCreateSink {
         .map { case (n, t) => Fragment.const(n.forSql) ++ t.asSql }
         .intercalate(fr","))
 
-  // TODO the rest and error when no matched, can put error in F
-  private def mapping(sqlServerType: SQLServerType): (JdbcType, Int, Int) =
+  private def toJdbcType(sqlServerType: SQLServerType): (JdbcType, Int, Int) =
     sqlServerType match {
       case SQLServerType.BIGINT => (JdbcType.BigInt, 0, 0)
       case SQLServerType.BIT => (JdbcType.Bit, 0, 0)
