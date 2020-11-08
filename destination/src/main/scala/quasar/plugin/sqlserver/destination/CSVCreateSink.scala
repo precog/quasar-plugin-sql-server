@@ -119,7 +119,7 @@ private[destination] object CsvCreateSink {
           cols.zipWithIndex.toList foreach {
             case ((name, tpe), idx) =>
               val sql = name.forSql.drop(1).dropRight(1)
-              bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Double.toInt, 10, 10)
+              bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Double.toInt, 53, 0)
               bulkCopy.addColumnMapping(sql, sql)
               logger.debug(s"Added column metadata and mapping for $sql.")
           }
