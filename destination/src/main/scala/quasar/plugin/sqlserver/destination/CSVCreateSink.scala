@@ -110,10 +110,11 @@ private[destination] object CsvCreateSink {
         _ <- FC.delay(bulkOptions.setUseInternalTransaction(false)) // transactions are managed externally
         //_ <- FC.delay(bulkOptions.setBatchSize(512))
 
-        _ <- FC.delay(bulkCopy.setDestinationTableName(unsafeObj.drop(1).dropRight(1)))
+        _ <- FC.delay(bulkCopy.setDestinationTableName("precogtest.intdata"))//unsafeObj.drop(1).dropRight(1)))
         _ <- FC.delay(logger.debug(s"Set destination table name to ${unsafeObj.drop(1).dropRight(1)}."))
 
         _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
+        _ <- FC.delay(bulkCopy.addColumnMapping("data", "data"))
         _ <- FC.delay(logger.debug(s"Set bulk copy options."))
 
         _ <- FC.delay(bulkCSV.setEscapeColumnDelimitersCSV(true))
@@ -131,7 +132,13 @@ private[destination] object CsvCreateSink {
         //  }
         //}
 
-        _ <- FC.delay(bulkCopy.writeToServer(bulkCSV))
+        _ <- FC.delay {
+          try {
+            bulkCopy.writeToServer(bulkCSV)
+          } catch {
+            case (e: Exception) => logger.debug(s"got exception: ${e.getMessage}")
+          }
+        }
         _ <- FC.delay(logger.debug(s"Wrote bulk CSV to server."))
 
         _ <- FC.delay(bulkCopy.close())
