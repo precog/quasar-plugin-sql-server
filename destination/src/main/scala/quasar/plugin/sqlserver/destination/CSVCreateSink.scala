@@ -107,9 +107,9 @@ private[destination] object CsvCreateSink {
         bulkOptions <- FC.delay(new SQLServerBulkCopyOptions())
 
         _ <- FC.delay(bulkOptions.setBulkCopyTimeout(0)) // no timeout
-       // _ <- FC.delay(bulkOptions.setTableLock(true))
-        _ <- FC.delay(bulkOptions.setUseInternalTransaction(true)) // transactions are not managed externally
-        _ <- FC.delay(bulkOptions.setBatchSize(512))
+        // _ <- FC.delay(bulkOptions.setTableLock(true))
+        _ <- FC.delay(bulkOptions.setUseInternalTransaction(false)) // transactions are managed externally
+        //_ <- FC.delay(bulkOptions.setBatchSize(512))
 
         _ <- FC.delay(bulkCopy.setDestinationTableName(unsafeObj.drop(1).dropRight(1)))
         _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
