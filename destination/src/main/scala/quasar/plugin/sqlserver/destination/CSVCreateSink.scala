@@ -153,8 +153,8 @@ private[destination] object CsvCreateSink {
       } yield ()
 
     def loadCsv2(bytes: InputStream, connection: java.sql.Connection)
-        //: F[Unit] = ConcurrentEffect[F].delay {
-        : ConnectionIO[Unit] = FC.delay {
+        : F[Unit] = ConcurrentEffect[F].delay {
+        //: ConnectionIO[Unit] = FC.delay {
       val bulkCopy = new SQLServerBulkCopy(connection)
       val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
       val stmt: java.sql.Statement = connection.createStatement()
@@ -179,8 +179,8 @@ private[destination] object CsvCreateSink {
       }
     }
 
-    def doLoad(bytes: InputStream, connection: java.sql.Connection)
-        : ConnectionIO[Unit] =
+    //def doLoad(bytes: InputStream, connection: java.sql.Connection)
+    def doLoad: ConnectionIO[Unit] =
       for {
         _ <- writeMode match {
           case WriteMode.Create =>
@@ -196,13 +196,15 @@ private[destination] object CsvCreateSink {
             createTable(ifNotExists = true)
         }
 
-        _ <- loadCsv2(bytes, connection)
+        //_ <- loadCsv2(bytes, connection)
       } yield ()
 
     bytes => {
       Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
         val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-        bytes.through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
+
+        Stream.eval(doLoad.transact(xa)) ++
+          bytes.through(fs2.io.toInputStream[F]).evalMap(loadCsv2(_, unwrapped))
       }
     }
 
