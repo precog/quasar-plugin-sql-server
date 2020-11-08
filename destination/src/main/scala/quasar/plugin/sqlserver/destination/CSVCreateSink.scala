@@ -170,7 +170,7 @@ private[destination] object CsvCreateSink {
     bytes => {
       Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
         val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-        (bytes ++ Stream.emit(0x0a: Byte)).chunkN(100).flatMap(Stream.chunk).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
+        (bytes.take(2) ++ Stream.emit(0x0a: Byte)).chunkN(100).flatMap(Stream.chunk).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
         //(bytes \* ++Stream.emit('\r'.toByte) ++ Stream.emit('\n'.toByte)*\).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
       }
     }
