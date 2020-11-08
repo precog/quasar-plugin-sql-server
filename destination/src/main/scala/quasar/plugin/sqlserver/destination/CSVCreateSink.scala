@@ -153,7 +153,7 @@ private[destination] object CsvCreateSink {
       val bulkCopy = new SQLServerBulkCopy(connection)
       val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
       val stmt: java.sql.Statement = connection.createStatement()
-      val name = "intdatanew4"
+      val name = "intdatanew5"
       try {
         stmt.executeUpdate(s"DROP TABLE IF EXISTS [dbo].[$name]")
         stmt.executeUpdate(s"CREATE TABLE [dbo].[$name] ([data1] INT, [data2] INT)")
@@ -161,7 +161,7 @@ private[destination] object CsvCreateSink {
         bulkCSV.addColumnMetadata(1, "", java.sql.Types.INTEGER, 0, 0)
         bulkCSV.addColumnMetadata(2, "", java.sql.Types.INTEGER, 0, 0)
 
-        bulkCopy.setDestinationTableName(s"dbo.$name")
+        bulkCopy.setDestinationTableName(s"$name")
 
         bulkCopy.writeToServer(bulkCSV)
         logger.debug(s"Wrote bulk CSV to server.")
@@ -194,6 +194,12 @@ private[destination] object CsvCreateSink {
       } yield ()
 
     bytes => {
+      Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
+        val unwrapped = connection.unwrap(classOf[SQLServerConnection])
+        bytes.through(fs2.io.toInputStream[F]).evalMap(loadCsv2(_, unwrapped))
+      }
+    }
+
       //val connectionURL = "jdbc:sqlserver://localhost:1433;user=SA;password=%3CYourStrong%40Passw0rd%3E;database=precogtest"
       //val connectionURL = "jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=precogtest"
 
@@ -203,12 +209,6 @@ private[destination] object CsvCreateSink {
       //val conn = java.sql.DriverManager.getConnection(connectionURL)
 
       //bytes.drain ++ Stream.eval(loadCsv2(inputStream, conn))
-
-      Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
-        val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-        bytes.through(fs2.io.toInputStream[F]).evalMap(loadCsv2(_, unwrapped))
-      }
-    }
 
     //bytes => {
     //  val url = "https://gist.githubusercontent.com/alissapajer/5329c1b32d068a9e81c35a4f40618730/raw/6cc0e8d7f0ad9644c121923a483d257fd5cc642a/ints.csv"
