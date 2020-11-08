@@ -28,7 +28,7 @@ JSON configuration required to construct a MS SQL Server destination.
 {
   "connection": <connection-configuration>,
   "writeMode": "create" | "replace" | "truncate" | "append",
-  "schema": <schema>,
+  "schema": OPTIONAL <schema>
 }
 ```
 
