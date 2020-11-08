@@ -110,7 +110,7 @@ private[destination] object CsvCreateSink {
         _ <- FC.delay(bulkOptions.setUseInternalTransaction(false)) // transactions are managed externally
         //_ <- FC.delay(bulkOptions.setBatchSize(512))
 
-        _ <- FC.delay(bulkCopy.setDestinationTableName("dbo.intdata"))//unsafeObj.drop(1).dropRight(1)))
+        _ <- FC.delay(bulkCopy.setDestinationTableName("precogtest.dbo.intdata"))//unsafeObj.drop(1).dropRight(1)))
         //_ <- FC.delay(logger.debug(s"Set destination table name to ${unsafeObj.drop(1).dropRight(1)}."))
 
         _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
