@@ -115,7 +115,7 @@ private[destination] object CsvCreateSink {
         _ <- FC delay {
           cols.zipWithIndex.toList foreach {
             case ((name, tpe), idx) =>
-              bulkCSV.addColumnMetadata(idx, name.toString, doobie.enum.JdbcType.Double.toInt, 10, 10)
+              bulkCSV.addColumnMetadata(idx + 1, name.toString, doobie.enum.JdbcType.Double.toInt, 10, 10)
           }
         }
 
