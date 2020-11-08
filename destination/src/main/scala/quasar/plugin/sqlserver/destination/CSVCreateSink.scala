@@ -152,30 +152,22 @@ private[destination] object CsvCreateSink {
         : F[Unit] = ConcurrentEffect[F].delay {
       val bulkCopy = new SQLServerBulkCopy(connection)
       val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
-      val bulkOptions = new SQLServerBulkCopyOptions()
-
-      bulkOptions.setBulkCopyTimeout(60) // no timeout
-      bulkOptions.setUseInternalTransaction(false) // transactions are managed externally
-
-      bulkCopy.setDestinationTableName("dbo.intdatanew")
-
-      bulkCopy.setBulkCopyOptions(bulkOptions)
-      logger.debug(s"Set bulk copy options.")
-
-      bulkCSV.addColumnMetadata(1, "", java.sql.Types.INTEGER, 0, 0)
-      bulkCSV.addColumnMetadata(2, "", java.sql.Types.INTEGER, 0, 0)
-
       try {
+        bulkCSV.addColumnMetadata(1, "", java.sql.Types.INTEGER, 0, 0)
+        bulkCSV.addColumnMetadata(2, "", java.sql.Types.INTEGER, 0, 0)
+
+        bulkCopy.setDestinationTableName("dbo.intdatanew")
+
         bulkCopy.writeToServer(bulkCSV)
+        logger.debug(s"Wrote bulk CSV to server.")
+        //connection.commit()
+        //logger.debug(s"Committed CSV.")
+
+        bulkCopy.close()
+        logger.debug(s"Closed bulk copy.")
       } catch {
         case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
       }
-      logger.debug(s"Wrote bulk CSV to server.")
-      connection.commit()
-      logger.debug(s"Committed CSV.")
-
-      bulkCopy.close()
-      logger.debug(s"Closed bulk copy.")
     }
 
     def doLoad(bytes: InputStream, connection: java.sql.Connection)
