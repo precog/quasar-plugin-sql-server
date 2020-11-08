@@ -148,6 +148,36 @@ private[destination] object CsvCreateSink {
         _ <- FC.delay(logger.debug(s"Closed bulk copy."))
       } yield ()
 
+    def loadCsv2(bytes: InputStream, connection: java.sql.Connection)
+        : F[Unit] = ConcurrentEffect[F].delay {
+      val bulkCopy = new SQLServerBulkCopy(connection)
+      val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
+      val bulkOptions = new SQLServerBulkCopyOptions()
+
+      bulkOptions.setBulkCopyTimeout(60) // no timeout
+      bulkOptions.setUseInternalTransaction(false) // transactions are managed externally
+
+      bulkCopy.setDestinationTableName("precogtest.dbo.intdatanew")
+
+      bulkCopy.setBulkCopyOptions(bulkOptions)
+      logger.debug(s"Set bulk copy options.")
+
+      bulkCSV.addColumnMetadata(1, "", java.sql.Types.INTEGER, 0, 0)
+      bulkCSV.addColumnMetadata(2, "", java.sql.Types.INTEGER, 0, 0)
+
+      try {
+        bulkCopy.writeToServer(bulkCSV)
+      } catch {
+        case (e: Exception) => logger.warn(s"got exception: ${e.getMessage}")
+      }
+      logger.debug(s"Wrote bulk CSV to server.")
+      connection.commit()
+      logger.debug(s"Committed CSV.")
+
+      bulkCopy.close()
+      logger.debug(s"Closed bulk copy.")
+    }
+
     def doLoad(bytes: InputStream, connection: java.sql.Connection)
         : ConnectionIO[Unit] =
       for {
@@ -174,8 +204,19 @@ private[destination] object CsvCreateSink {
 
       bytes.drain ++ (Stream.resource(xa.connect(xa.kernel)) evalMap { connection =>
         val unwrapped = connection.unwrap(classOf[SQLServerConnection])
-        doLoad(inputStream, unwrapped).transact(xa)
+        loadCsv2(inputStream, unwrapped)
       })
+    }
+
+    //bytes => {
+    //  val url = "https://gist.githubusercontent.com/alissapajer/5329c1b32d068a9e81c35a4f40618730/raw/6cc0e8d7f0ad9644c121923a483d257fd5cc642a/ints.csv"
+    //  val inputStream = (new java.net.URL(url)).openStream()
+
+    //  bytes.drain ++ (Stream.resource(xa.connect(xa.kernel)) evalMap { connection =>
+    //    val unwrapped = connection.unwrap(classOf[SQLServerConnection])
+    //    doLoad(inputStream, unwrapped).transact(xa)
+    //  })
+    //}
 
       //Stream.resource(xa.connect(xa.kernel)) flatMap { connection =>
       //  val unwrapped = connection.unwrap(classOf[SQLServerConnection])
@@ -188,7 +229,6 @@ private[destination] object CsvCreateSink {
       //  //(bytes.take(2) ++ Stream.emit(0x0a: Byte)).chunkN(100).flatMap(Stream.chunk).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
       //  //(bytes \* ++Stream.emit('\r'.toByte) ++ Stream.emit('\n'.toByte)*\).onFinalize(ConcurrentEffect[F].delay(logger.debug(s"finished byte stream"))).observe(_.map(b => println(s"bytes: $b"))).through(fs2.io.toInputStream[F]).evalMap(doLoad(_, unwrapped).transact(xa))
       //}
-    }
   }
 
   ////
