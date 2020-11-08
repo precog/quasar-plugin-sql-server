@@ -78,7 +78,8 @@ private[destination] object CsvCreateSink {
     def createTable(ifNotExists: Boolean): ConnectionIO[Int] = {
       val stmt = if (ifNotExists) fr"CREATE TABLE IF NOT EXISTS" else fr"CREATE TABLE"
 
-      (stmt ++ objFragment ++ fr0"nope" ++ fr0" " ++ columnSpecs(cols))
+      //(stmt ++ objFragment ++ fr0" " ++ columnSpecs(cols))
+      (stmt ++ Fragment.const0("[nope]") ++ fr0" " ++ columnSpecs(cols))
         .updateWithLogHandler(logHandler)
         .run
     }
