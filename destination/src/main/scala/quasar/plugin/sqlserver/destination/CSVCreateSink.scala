@@ -112,19 +112,22 @@ private[destination] object CsvCreateSink {
         //_ <- FC.delay(bulkOptions.setBatchSize(512))
 
         _ <- FC.delay(bulkCopy.setDestinationTableName(unsafeObj.drop(1).dropRight(1)))
-        _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
+        _ <- FC.delay(logger.debug(s"Set destination table name to ${unsafeObj.drop(1).dropRight(1)}."))
 
-        _ <- FC delay {
-          cols.zipWithIndex.toList foreach {
-            case ((name, tpe), idx) =>
-              val sql = name.forSql.drop(1).dropRight(1) // TODO move to where we do hygiene
-              //bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Double.toInt, 53, 0)
-              bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Integer.toInt, 0, 0)
-              bulkCopy.addColumnMapping(sql, sql)
-              logger.debug(s"Added column metadata and mapping for $sql.")
-          }
-        }
+        _ <- FC.delay(bulkCopy.setBulkCopyOptions(bulkOptions))
         _ <- FC.delay(logger.debug(s"Set bulk copy options."))
+
+        //_ <- FC delay {
+        //  cols.zipWithIndex.toList foreach {
+        //    case ((name, tpe), idx) =>
+        //      val sql = name.forSql.drop(1).dropRight(1) // TODO move to where we do hygiene
+        //      //bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Double.toInt, 53, 0)
+        //      //bulkCSV.addColumnMetadata(idx + 1, sql, doobie.enum.JdbcType.Integer.toInt, 0, 0)
+        //      //logger.debug(s"Added column metadata and mapping for $sql.")
+        //      //bulkCopy.addColumnMapping(sql, sql)
+        //      //logger.debug(s"Added column mapping for $sql.")
+        //  }
+        //}
 
         _ <- FC.delay(bulkCopy.writeToServer(bulkCSV))
         _ <- FC.delay(logger.debug(s"Wrote bulk CSV to server."))
