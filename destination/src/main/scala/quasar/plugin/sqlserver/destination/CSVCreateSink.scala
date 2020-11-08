@@ -78,6 +78,10 @@ private[destination] object CsvCreateSink {
       t => t.forSql,
       { case (d, t) => d.forSql ++ "." ++ t.forSql })
 
+    val unsafeObjNoHygiene = obj.fold(
+      t => t.forSql.drop(1).dropRight(1),
+      { case (d, t) => d.forSql.drop(1).dropRight(1) ++ "." ++ t.forSql.drop(1).dropRight(1) })
+
     def dropTableIfExists =
       (fr"DROP TABLE IF EXISTS" ++ objFragment)
         .updateWithLogHandler(logHandler)
@@ -153,15 +157,16 @@ private[destination] object CsvCreateSink {
       val bulkCopy = new SQLServerBulkCopy(connection)
       val bulkCSV = new SQLServerBulkCSVFileRecord(bytes, "UTF-8", ",", false)
       val stmt: java.sql.Statement = connection.createStatement()
-      val name = "intdatanew5"
       try {
-        stmt.executeUpdate(s"DROP TABLE IF EXISTS [dbo].[$name]")
-        stmt.executeUpdate(s"CREATE TABLE [dbo].[$name] ([data1] INT, [data2] INT)")
+        stmt.executeUpdate(s"DROP TABLE IF EXISTS [dbo].[$unsafeObj]")
+        stmt.executeUpdate(s"CREATE TABLE [dbo].[$unsafeObj] ([data1] INT, [data2] INT)")
 
-        bulkCSV.addColumnMetadata(1, "", java.sql.Types.INTEGER, 0, 0)
-        bulkCSV.addColumnMetadata(2, "", java.sql.Types.INTEGER, 0, 0)
+        cols.zipWithIndex.toList foreach {
+          case ((_, tpe), idx) => // TODO use tpe
+            bulkCSV.addColumnMetadata(idx + 1, "", java.sql.Types.INTEGER, 0, 0)
+        }
 
-        bulkCopy.setDestinationTableName(s"$name")
+        bulkCopy.setDestinationTableName(unsafeObjNoHygiene)
 
         bulkCopy.writeToServer(bulkCSV)
         logger.debug(s"Wrote bulk CSV to server.")
