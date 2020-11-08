@@ -25,6 +25,6 @@ package object destination {
     RenderConfig.Csv(
       includeHeader = false,
       nullSentinel = Some("NULL"),
-      includeBom = true,
+      includeBom = false,
       booleanFormat = if (_) "1" else "0")
 }
