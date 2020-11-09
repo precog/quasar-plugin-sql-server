@@ -200,7 +200,9 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
 
       "bigint" >> ingestValues(BIGINT, -9223372036854775808L, 0L, 9223372036854775807L)
 
-      "float" >> ingestValues(FLOAT(53), -1.7976931348623157E+308, Float.MinPositiveValue, 1.7976931348623157E+308)
+      "float" >> ingestValues(FLOAT(53), -1.7976931348623157E+308, -2.23E-308, 0, 2.23E-308, 1.7976931348623157E+308, Float.MinPositiveValue)
+
+      "real" >> ingestValues(REAL, -3.3999999521443642E38, -1.179999945774631E-38, 0.0, 1.179999945774631E-38, 3.3999999521443642E38)
 
       "decimal" >> {
         val min = BigDecimal("-9999999999999999999999999999.9999999999")
@@ -215,6 +217,10 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         val max = BigDecimal("999999999999999999999999999999999999.99")
         ingestValues(DECIMAL(38, 2), min, mid, max)
       }
+
+      // FIXME why no money?!
+      //"money" >> ingestValues(MONEY, BigDecimal(-922337203685477.5808), BigDecimal(0), BigDecimal(922337203685477.5807))
+      //"smallmoney" >> ingestValues(SMALLMONEY, -214748.3648, 0, 214748.3647)
     }
     /*
 
