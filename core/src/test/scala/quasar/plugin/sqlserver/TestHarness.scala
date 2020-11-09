@@ -16,6 +16,9 @@
 
 package quasar.plugin.sqlserver
 
+import quasar.plugin.jdbc.Ident
+import quasar.plugin.sqlserver.{HI, SQLServerHygiene}
+
 import scala.{text => _, Stream => _, _}, Predef._
 import scala.concurrent.ExecutionContext
 import scala.util.Random
@@ -64,16 +67,18 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
       .void
       .unsafeRunSync
 
-  def table(xa: Transactor[IO]): Resource[IO, (ResourcePath, String)] =
+  def table(xa: Transactor[IO], schema: HI): Resource[IO, (ResourcePath, String)] =
     Resource.make(
         IO(s"dest_spec_${Random.alphanumeric.take(6).mkString}"))(
         name => frag(s"DROP TABLE IF EXISTS $name").update.run.transact(xa).void)
-      .map(n => (ResourcePath.root() / ResourceName("dbo") / ResourceName(n), n))
+      .map(n => (ResourcePath.root() / ResourceName(schema.unsafeString) / ResourceName(n), n))
 
-  def tableHarness(jdbcUrl: String = TestUrl(Some(TestDb)))
+  def tableHarness(
+      jdbcUrl: String = TestUrl(Some(TestDb)),
+      schema: HI = SQLServerHygiene.hygienicIdent(Ident("dbo")))
       : Resource[IO, (Transactor[IO], ResourcePath, String)] =
     for {
       xa <- TestXa(jdbcUrl)
-      (path, name) <- table(xa)
+      (path, name) <- table(xa, schema)
     } yield (xa, path, name)
 }
