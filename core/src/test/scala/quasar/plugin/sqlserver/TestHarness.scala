@@ -71,6 +71,7 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
     Resource.make(
         IO(s"sqlserver_spec_${Random.alphanumeric.take(6).mkString}"))(
         name => frag(s"DROP TABLE IF EXISTS $name").update.run.transact(xa).void)
+        //TODO what do we do here!>>!>!>!
       //.map(n => (ResourcePath.root() / ResourceName(schema) / ResourceName(n), n))
       .map(n => (ResourcePath.root() / ResourceName(n), n))
 

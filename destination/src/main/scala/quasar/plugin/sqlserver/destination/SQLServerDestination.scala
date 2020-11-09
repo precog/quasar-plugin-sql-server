@@ -58,10 +58,7 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
     ResultSink.CreateSink {
       case (path, ts) =>
-        val pathWithSchema = path.fold(
-          f => ResourcePath.Leaf(f),
-          ResourcePath.root() / ResourceName(schema))
-
+        val pathWithSchema = path./:(ResourceName(schema))
         println(s"pathWithSchema: $pathWithSchema")
 
         (SQLServerCsvConfig, jdbcSink(pathWithSchema, ts))
