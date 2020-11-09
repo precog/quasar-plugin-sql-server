@@ -31,13 +31,14 @@ import org.slf4s.Logger
 
 import quasar.api.{ColumnType, Label}
 import quasar.api.push.TypeCoercion
+import quasar.api.resource.{ResourceName, ResourcePath}
 import quasar.connector.MonadResourceErr
 import quasar.connector.destination.{Constructor, Destination, ResultSink}
 import quasar.plugin.jdbc.destination.{JdbcCreateSink, WriteMode}
 
 private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: MonadResourceErr: Timer](
     writeMode: WriteMode,
-    schema: HI,
+    schema: String,
     xa: Transactor[F],
     logger: Logger)
     extends Destination[F] {
@@ -53,9 +54,18 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
     val jdbcSink =
       JdbcCreateSink[F, Type](
         SQLServerHygiene, logger)(
-        CsvCreateSink(writeMode, schema, xa, logger))
+        CsvCreateSink(writeMode, xa, logger))
 
-    ResultSink.CreateSink((p, ts) => (SQLServerCsvConfig, jdbcSink(p, ts)))
+    ResultSink.CreateSink {
+      case (path, ts) =>
+        val pathWithSchema = path.fold(
+          f => ResourcePath.Leaf(f),
+          ResourcePath.root() / ResourceName(schema))
+
+        println(s"pathWithSchema: $pathWithSchema")
+
+        (SQLServerCsvConfig, jdbcSink(pathWithSchema, ts))
+    }
   }
 
   val sinks = NonEmptyList.one(createSink)

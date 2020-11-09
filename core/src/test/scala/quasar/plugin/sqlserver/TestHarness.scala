@@ -67,15 +67,16 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
       .void
       .unsafeRunSync
 
-  def table(xa: Transactor[IO], schema: HI): Resource[IO, (ResourcePath, String)] =
+  def table(xa: Transactor[IO], schema: String): Resource[IO, (ResourcePath, String)] =
     Resource.make(
-        IO(s"dest_spec_${Random.alphanumeric.take(6).mkString}"))(
+        IO(s"sqlserver_spec_${Random.alphanumeric.take(6).mkString}"))(
         name => frag(s"DROP TABLE IF EXISTS $name").update.run.transact(xa).void)
-      .map(n => (ResourcePath.root() / ResourceName(schema.unsafeString) / ResourceName(n), n))
+      //.map(n => (ResourcePath.root() / ResourceName(schema) / ResourceName(n), n))
+      .map(n => (ResourcePath.root() / ResourceName(n), n))
 
   def tableHarness(
       jdbcUrl: String = TestUrl(Some(TestDb)),
-      schema: HI = SQLServerHygiene.hygienicIdent(Ident("dbo")))
+      schema: String = "dbo")
       : Resource[IO, (Transactor[IO], ResourcePath, String)] =
     for {
       xa <- TestXa(jdbcUrl)

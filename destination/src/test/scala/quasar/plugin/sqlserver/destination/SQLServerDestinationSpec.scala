@@ -45,13 +45,15 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       dest: SQLServerDestination[IO],
       path: ResourcePath,
       cols: NonEmptyList[Column[SQLServerType]])
-      : Pipe[IO, Byte, Unit] =
+      : Pipe[IO, Byte, Unit] = {
+    println(s"path in createSink: $path")
     dest.createSink.consume(path, cols)._2
+  }
 
   def harnessed(
       jdbcUrl: String = TestUrl(Some(TestDb)),
       writeMode: WriteMode = WriteMode.Replace,
-      schema: HI = SQLServerHygiene.hygienicIdent(Ident("dbo")))
+      schema: String = "dbo")
       : Resource[IO, (Transactor[IO], SQLServerDestination[IO], ResourcePath, String)] =
     tableHarness(jdbcUrl, schema) map {
       case (xa, path, name) => {

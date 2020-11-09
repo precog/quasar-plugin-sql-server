@@ -47,7 +47,6 @@ import quasar.plugin.jdbc.destination.WriteMode
 private[destination] object CsvCreateSink {
   def apply[F[_]: ConcurrentEffect](
       writeMode: WriteMode,
-      schema: HI,
       xa: Transactor[F],
       logger: Logger)(
       obj: Either[HI, (HI, HI)],
@@ -57,12 +56,10 @@ private[destination] object CsvCreateSink {
     val logHandler = Slf4sLogHandler(logger)
 
     val objFragment = obj.fold(
-     // t => { println(s"case1"); Fragment.const0(schema.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) },
       t => { println(s"case1"); Fragment.const0(t.forSql) },
       { case (d, t) => { println(s"case2: $d $t"); Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) }})
 
     val unsafeObj = obj.fold(
-      //t => { println(s"case1 unsafe"); schema.unsafeString ++ "." ++ t.unsafeString},
       t => { println(s"case1 unsafe"); t.unsafeString},
       { case (d, t) => { println(s"case2 unsafe $d $t"); d.unsafeString ++ "." ++ t.unsafeString }})
 

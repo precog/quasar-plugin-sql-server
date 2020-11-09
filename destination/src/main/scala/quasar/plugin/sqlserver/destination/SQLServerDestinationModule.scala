@@ -16,8 +16,6 @@
 
 package quasar.plugin.sqlserver.destination
 
-import quasar.plugin.sqlserver.SQLServerHygiene
-
 import scala._, Predef._
 import scala.concurrent.duration._
 
@@ -81,10 +79,9 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
       log: Logger)
       : Resource[F, Either[InitError, Destination[F]]] = {
     val schema = config.schema.getOrElse("dbo")
-    val schemaHI = SQLServerHygiene.hygienicIdent(Ident(schema))
 
     // TODO test different schema
-    (new SQLServerDestination[F](config.writeMode, schemaHI, transactor, log): Destination[F])
+    (new SQLServerDestination[F](config.writeMode, schema, transactor, log): Destination[F])
       .asRight[InitError]
       .pure[Resource[F, ?]]
   }
