@@ -47,7 +47,7 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
 
   def harnessed(jdbcUrl: String = TestUrl(Some(TestDb)))
       : Resource[IO, (Transactor[IO], DS, ResourcePath, String)] =
-    tableHarness(jdbcUrl) map {
+    tableHarness(jdbcUrl, true) map {
       case (xa, path, name) =>
         val disc = JdbcDiscovery(SQLServerDatasourceModule.discoverableTableTypes(log))
         (xa, SQLServerDatasource(xa, disc, log), path, name)

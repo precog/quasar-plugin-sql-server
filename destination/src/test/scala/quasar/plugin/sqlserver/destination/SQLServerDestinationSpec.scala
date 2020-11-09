@@ -41,21 +41,21 @@ import quasar.plugin.jdbc.destination.WriteMode
 object SQLServerDestinationSpec extends TestHarness with Logging {
   import SQLServerType._
 
+  sequential // FIXME we need to be able to run multiple pushes at the same time
+
   def createSink(
       dest: SQLServerDestination[IO],
       path: ResourcePath,
       cols: NonEmptyList[Column[SQLServerType]])
-      : Pipe[IO, Byte, Unit] = {
-    println(s"path in createSink: $path")
+      : Pipe[IO, Byte, Unit] =
     dest.createSink.consume(path, cols)._2
-  }
 
   def harnessed(
       jdbcUrl: String = TestUrl(Some(TestDb)),
       writeMode: WriteMode = WriteMode.Replace,
       schema: String = "dbo")
       : Resource[IO, (Transactor[IO], SQLServerDestination[IO], ResourcePath, String)] =
-    tableHarness(jdbcUrl, schema) map {
+    tableHarness(jdbcUrl, false) map {
       case (xa, path, name) => {
         (xa, new SQLServerDestination(writeMode, schema, xa, log), path, name)
       }
@@ -73,8 +73,8 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     harnessed(writeMode = WriteMode.Replace) use { case (xa, dest, path, tableName) =>
       for {
         _ <- input.through(createSink(dest, path, cols)).compile.drain
-        _ = println(s"tableName: $tableName")
-        _ = println(s"path in harnessed: $path")
+        //_ = println(s"tableName: $tableName")
+        //_ = println(s"path in harnessed: $path")
         vals <- frag(s"select value from $tableName").query[A].to[List].transact(xa)
       } yield {
         vals must containTheSameElementsAs(values)
@@ -173,14 +173,11 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
 */
 
   "ingest" >> {
-/*
     "boolean" >> {
       val input = csv("1", "0")
       val cols = NonEmptyList.one(Column("thebool", BIT))
 
       harnessed() use { case (xa, dest, path, tableName) =>
-        println(s"tablename: $tableName in boolean")
-        println(s"path: $path in boolean")
         for {
           _ <- input.through(createSink(dest, path, cols)).compile.drain
 
@@ -192,34 +189,32 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
-    */
 
     "number" >> {
 
       "tinyint" >> ingestValues(TINYINT, 0, 255)
 
-      /*
-      "smallint" >> ingestValues(SMALLINT(SIGNED), -32768, 0, 32767)
+      "smallint" >> ingestValues(SMALLINT, -32768, 0, 32767)
 
-      "mediumint" >> ingestValues(MEDIUMINT(SIGNED), -8388608, 0, 8388607)
+      "int" >> ingestValues(INT, -2147483648, 0, 2147483647)
 
-      "int" >> ingestValues(INT(SIGNED), -2147483648, 0, 2147483647)
+      "bigint" >> ingestValues(BIGINT, -9223372036854775808L, 0L, 9223372036854775807L)
 
-      "bigint" >> ingestValues(BIGINT(SIGNED), -9223372036854775808L, 0L, 9223372036854775807L)
-
-      "float" >> ingestValues(FLOAT(SIGNED), -3.40282E+38f, Float.MinPositiveValue, 3.40282E+38f)
-
-      "double" >> ingestValues(DOUBLE(SIGNED), -1.7976931348623157E+308, 2.2250738585072014E-308, 1.7976931348623157E+308)
+      "float" >> ingestValues(FLOAT(53), -1.7976931348623157E+308, Float.MinPositiveValue, 1.7976931348623157E+308)
 
       "decimal" >> {
-        val min = BigDecimal("-99999999999999999999999999999999999.999999999999999999999999999999")
-        val mid = BigDecimal("1234567898765432100000000.000000000099999966999977777799")
-        val max = BigDecimal("99999999999999999999999999999999999.999999999999999999999999999999")
-        ingestValues(DECIMAL(65, 30, SIGNED), min, mid, max)
+        val min = BigDecimal("-9999999999999999999999999999.9999999999")
+        val mid = BigDecimal("1234499959999999999999999999.0001239999")
+        val max = BigDecimal("9999999999999999999999999999.9999999999")
+        ingestValues(DECIMAL(38, 10), min, mid, max)
       }
 
-      "year" >> ingestValues(YEAR, 1901, 1969, 2155)
-      */
+      "numeric" >> {
+        val min = BigDecimal("-999999999999999999999999999999999999.99")
+        val mid = BigDecimal("111112349999999999999999999999999999.12")
+        val max = BigDecimal("999999999999999999999999999999999999.99")
+        ingestValues(DECIMAL(38, 2), min, mid, max)
+      }
     }
     /*
 

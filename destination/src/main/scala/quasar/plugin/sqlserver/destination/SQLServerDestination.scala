@@ -31,7 +31,7 @@ import org.slf4s.Logger
 
 import quasar.api.{ColumnType, Label}
 import quasar.api.push.TypeCoercion
-import quasar.api.resource.{ResourceName, ResourcePath}
+import quasar.api.resource.ResourceName
 import quasar.connector.MonadResourceErr
 import quasar.connector.destination.{Constructor, Destination, ResultSink}
 import quasar.plugin.jdbc.destination.{JdbcCreateSink, WriteMode}
@@ -59,8 +59,6 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
     ResultSink.CreateSink {
       case (path, ts) =>
         val pathWithSchema = path./:(ResourceName(schema))
-        println(s"pathWithSchema: $pathWithSchema")
-
         (SQLServerCsvConfig, jdbcSink(pathWithSchema, ts))
     }
   }

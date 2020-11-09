@@ -56,12 +56,20 @@ private[destination] object CsvCreateSink {
     val logHandler = Slf4sLogHandler(logger)
 
     val objFragment = obj.fold(
-      t => { println(s"case1"); Fragment.const0(t.forSql) },
-      { case (d, t) => { println(s"case2: $d $t"); Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) }})
+      t => Fragment.const0(t.forSql),
+      { case (d, t) => Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) })
 
     val unsafeObj = obj.fold(
-      t => { println(s"case1 unsafe"); t.unsafeString},
-      { case (d, t) => { println(s"case2 unsafe $d $t"); d.unsafeString ++ "." ++ t.unsafeString }})
+      t => t.unsafeString,
+      { case (d, t) => d.unsafeString ++ "." ++ t.unsafeString })
+
+    //val objFragment = obj.fold(
+    //  t => { println(s"case1"); Fragment.const0(t.forSql) },
+    //  { case (d, t) => { println(s"case2: $d $t"); Fragment.const0(d.forSql) ++ fr0"." ++ Fragment.const0(t.forSql) }})
+
+    //val unsafeObj = obj.fold(
+    //  t => { println(s"case1 unsafe"); t.unsafeString},
+    //  { case (d, t) => { println(s"case2 unsafe $d $t"); d.unsafeString ++ "." ++ t.unsafeString }})
 
     def dropTableIfExists =
       (fr"DROP TABLE IF EXISTS" ++ objFragment)
@@ -76,7 +84,6 @@ private[destination] object CsvCreateSink {
 
     // TODO test table creation if not exists
     def createTable(ifNotExists: Boolean): ConnectionIO[Int] = {
-      println(s"creating table")
       val stmt = if (ifNotExists) fr"CREATE TABLE IF NOT EXISTS" else fr"CREATE TABLE"
 
       val x = (stmt ++ objFragment ++ fr0" " ++ columnSpecs(cols))
