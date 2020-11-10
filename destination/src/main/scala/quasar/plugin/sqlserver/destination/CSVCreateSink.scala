@@ -116,6 +116,9 @@ private[destination] object CsvCreateSink {
           }
           logger.debug(s"Added column metadata for $unsafeObj")
 
+          fileRecord.setEscapeColumnDelimitersCSV(true)
+          logger.debug(s"Set escape column delimiters for $unsafeObj")
+
           copyOptions.setBatchSize(512)
           copyOptions.setUseInternalTransaction(false)
           copyOptions.setTableLock(true)

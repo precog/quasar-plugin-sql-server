@@ -16,6 +16,8 @@
 
 package quasar.plugin.sqlserver.destination
 
+import quasar.plugin.sqlserver.{ConnectionConfig, DriverParameter}
+
 import scala._, Predef._
 import scala.concurrent.duration._
 
@@ -55,6 +57,10 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
       maxConcurrency = cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
       maxLifetime = cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
 
+      //connectionString =
+      //  ConnectionConfig.Optics.parameters
+      //    .modify(DriverParameter.SendTemporalDataTypesAsStringForBulkCopy :: _)(cc)
+      //    .jdbcUrl
       connectionString = cc.jdbcUrl
 
       jdbcUrl <-

@@ -66,7 +66,10 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       .intersperse("\r\n")
       .through(text.utf8Encode)
 
-  def ingestValues[A: Read](tpe: SQLServerType, values: A*) = {
+  def ingestValues[A: Read](tpe: SQLServerType, values: A*) =
+    ingestValuesWithExpected(tpe, values: _*)(values: _*)
+
+  def ingestValuesWithExpected[A: Read](tpe: SQLServerType, values: A*)(expected: A*) = {
     val input = csv(values.map(_.toString): _*)
     val cols = NonEmptyList.one(Column("value", tpe))
 
@@ -77,7 +80,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         //_ = println(s"path in harnessed: $path")
         vals <- frag(s"select value from $tableName").query[A].to[List].transact(xa)
       } yield {
-        vals must containTheSameElementsAs(values)
+        vals must containTheSameElementsAs(expected)
       }
     }
   }
@@ -222,47 +225,102 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       //"money" >> ingestValues(MONEY, BigDecimal(-922337203685477.5808), BigDecimal(0), BigDecimal(922337203685477.5807))
       //"smallmoney" >> ingestValues(SMALLMONEY, -214748.3648, 0, 214748.3647)
     }
-    /*
 
-    "string" >> {
-      List(TINYBLOB, BLOB, MEDIUMBLOB, LONGBLOB, TINYTEXT, TEXT, MEDIUMTEXT, LONGTEXT) foreach { tpe =>
-        tpe.toString.toLowerCase >> ingestValues(tpe, "føobår", "ひらがな", "b a t")
+    // FIXME why no unicode!?
+    // char, nchar, nvarchar, text, uniqueid, varchar
+    //"string" >> {
+      //"text" >> ingestValues(TEXT, "føobår", "  ひらがな", " b a t")
+
+      //"char" >> ingestValues(CHAR(6), "føobår", "  ひらがな", " b a t")
+
+      //"varchar" >> ingestValues(VARCHAR(6), "føobår", "  ひらがな", " b a t")
+
+      //"nchar" >> ingestValues(NCHAR(6), "føobår", "  ひらがな", " b a t")
+
+      //"nvarchar" >> ingestValues(NVARCHAR(6), "føobår", "ひらがな", "b a t")
+    //}
+
+    "temporal" >> {
+      "date" >> {
+        val minDate = "0001-01-01"
+        val midDate = "2020-11-09"
+        val maxDate = "9999-12-31"
+
+        ingestValues(DATE, minDate, midDate, maxDate)
       }
 
-      "nchar" >> ingestValues(CHAR(6), "føobår", "  ひらがな", " b a t")
+      "time" >> {
+        val minTime = "00:00:00.000000"
+        val midTime = "11:13:52.738493"
+        val midTimeNoMs = "11:13:52"
+        val maxTime = "23:59:59.000000"
 
-      "nvarchar" >> ingestValues(VARCHAR(6), "føobår", "ひらがな", "b a t")
+        ingestValuesWithExpected(TIME(6), minTime, midTime, midTimeNoMs, maxTime)(
+          minTime, midTime, "11:13:52.000000", maxTime)
+      }
 
-      "binary" >> ingestValues(BINARY(6), "foobar", "ひら", "føoba")
+      "datetime" >> {
+        val minDateTime = "1753-01-01T00:00:00.000"
+        val midDateTime = "2020-11-09T11:13:38.742"
+        val midDateTimeNoMs = "2020-11-09T11:13:38"
+        val maxDateTime = "9999-12-31T23:59:59.997"
 
-      "varbinary" >> ingestValues(VARBINARY(6), "foobar", "ひら", "føo")
+        val expectedMinDateTime = "1753-01-01 00:00:00.0"
+        val expectedMidDateTime = "2020-11-09 11:13:38.743" // it rounds to .000, .003, or .007
+        val expectedMidDateTimeNoMs = "2020-11-09 11:13:38.0"
+        val expectedMaxDateTime = "9999-12-31 23:59:59.997"
+
+        ingestValuesWithExpected(DATETIME,
+          minDateTime, midDateTime, midDateTimeNoMs, maxDateTime)(
+          expectedMinDateTime, expectedMidDateTime, expectedMidDateTimeNoMs, expectedMaxDateTime)
+      }
+
+      "datetime2" >> {
+        val minDateTime = "0001-01-01T00:00:00.000000"
+        val midDateTime = "2020-11-09T11:13:38.742128"
+        val midDateTimeNoMs = "2020-11-09T11:13:38"
+        val maxDateTime = "9999-12-31T23:59:59.999999"
+
+        val expectedMinDateTime = "0001-01-01 00:00:00.000000"
+        val expectedMidDateTime = "2020-11-09 11:13:38.742128"
+        val expectedMidDateTimeNoMs = "2020-11-09 11:13:38.000000"
+        val expectedMaxDateTime = "9999-12-31 23:59:59.999999"
+
+        ingestValuesWithExpected(DATETIME2(6),
+          minDateTime, midDateTime, midDateTimeNoMs, maxDateTime)(
+          expectedMinDateTime, expectedMidDateTime, expectedMidDateTimeNoMs, expectedMaxDateTime)
+      }
+
+      "datetimeoffset" >> {
+        val minDateTime= "1000-01-01T00:00:00.000000-14:00"
+        val midDateTime= "2020-11-09T09:12:43.873004-04:00"
+        val midDateTimeNoMs = "2020-11-09T09:12:43-04:00"
+        val maxDateTime = "9999-12-31T23:59:59.999999+14:00"
+
+        val expectedMinDateTime= "1000-01-01 00:00:00.000000 -14:00"
+        val expectedMidDateTime= "2020-11-09 09:12:43.873004 -04:00"
+        val expectedMidDateTimeNoMs = "2020-11-09 09:12:43.000000 -04:00"
+        val expectedMaxDateTime = "9999-12-31 23:59:59.999999 +14:00"
+
+        ingestValuesWithExpected(DATETIMEOFFSET(6),
+          minDateTime, midDateTime, midDateTimeNoMs, maxDateTime)(
+          expectedMinDateTime, expectedMidDateTime, expectedMidDateTimeNoMs, expectedMaxDateTime)
+      }
+
+      "smalldatetime" >> {
+        val minDateTime = "1900-01-01T00:00:00"
+        val midDateTime = "2020-11-09T04:12:08"
+        val maxDateTime = "2079-06-06T23:59:00"
+
+        val expectedMinDateTime = "1900-01-01 00:00:00.0"
+        val expectedMidDateTime = "2020-11-09 04:12:00.0"
+        val expectedMaxDateTime = "2079-06-06 23:59:00.0"
+
+        ingestValuesWithExpected(SMALLDATETIME, minDateTime, midDateTime, maxDateTime)(
+          expectedMinDateTime, expectedMidDateTime, expectedMaxDateTime)
+      }
     }
-
-    "localdate" >> {
-      val min = LocalDate.parse("1000-01-01")
-      val mid = LocalDate.parse("2020-07-15")
-      val max = LocalDate.parse("9999-12-31")
-
-      ingestValues(DATE, min, mid, max)
-    }
-
-    "localtime" >> {
-      val min = LocalTime.parse("00:00:00")
-      val mid = LocalTime.parse("12:11:32")
-      val midS = LocalTime.parse("13:42:32.123456")
-      val max = LocalTime.parse("23:59:59.999999")
-
-      ingestValues(TIME(6), min, mid, midS, max)
-    }
-
-    "localdatetime" >> {
-      val min = LocalDateTime.parse("1000-01-01T00:00:00.000000")
-      val mid = LocalDateTime.parse("2020-07-15T11:30:05")
-      val midS = LocalDateTime.parse("2020-05-05T03:30:45")
-      val max = LocalDateTime.parse("9999-12-31T23:59:59.999999")
-
-      ingestValues(DATETIME(6), min, mid, midS, max)
-    }
+    /*
 
     "containing special characters" >> {
       val escA = """"foo,"",,""""""""
@@ -286,18 +344,19 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
+    */
 
-    "multiple fields" >> {
+    "multiple fields with double-quoted string" >> {
       val row1 = "2020-07-12,123456.234234,\"hello world\",887798"
       val row2 = "1983-02-17,732345.987,\"lorum, ipsum\",42"
 
       val input = csv(row1, row2)
 
-      val cols = NonEmptyList.of(
+      val cols: NonEmptyList[Column[SQLServerType]] = NonEmptyList.of(
         Column("A", DATE),
-        Column("B", DOUBLE(SIGNED)),
+        Column("B", FLOAT(15)),
         Column("C", VARCHAR(20)),
-        Column("D", MEDIUMINT(SIGNED)))
+        Column("D", INT))
 
       harnessed() use { case (xa, dest, path, tableName) =>
         for {
@@ -314,6 +373,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
+    /*
 
     "undefined fields" >> {
       val row1 = "NULL,42,1992-03-04"
