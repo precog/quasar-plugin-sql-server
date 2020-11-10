@@ -57,6 +57,7 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
       maxConcurrency = cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
       maxLifetime = cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
 
+      // TODO do we need this or the other time-related param?
       //connectionString =
       //  ConnectionConfig.Optics.parameters
       //    .modify(DriverParameter.SendTemporalDataTypesAsStringForBulkCopy :: _)(cc)

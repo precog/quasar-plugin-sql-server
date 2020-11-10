@@ -94,8 +94,6 @@ private[destination] object CsvCreateSink {
         .run
     }
 
-    // TODO date time formatting things
-    // TODO test double quotes - consider SQLServerBulkCSVFileRecord.setEscapeColumnDelimitersCSV(boolean)
     def loadCsv(bytes: InputStream, connection: java.sql.Connection): F[Unit] = {
       type Utilities = (SQLServerBulkCopy, SQLServerBulkCSVFileRecord, SQLServerBulkCopyOptions)
 

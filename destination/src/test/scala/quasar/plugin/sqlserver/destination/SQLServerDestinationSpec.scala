@@ -354,7 +354,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
 
       val cols: NonEmptyList[Column[SQLServerType]] = NonEmptyList.of(
         Column("A", DATE),
-        Column("B", FLOAT(15)),
+        Column("B", DECIMAL(12, 6)),
         Column("C", VARCHAR(20)),
         Column("D", INT))
 
