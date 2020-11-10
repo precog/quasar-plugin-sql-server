@@ -373,18 +373,17 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
-    /*
 
     "undefined fields" >> {
-      val row1 = "NULL,42,1992-03-04"
-      val row2 = "foo,NULL,1992-03-04"
-      val row3 = "foo,42,NULL"
+      val row1 = s"$NullSentinel,42,1992-03-04"
+      val row2 = s"foo,$NullSentinel,1992-03-04"
+      val row3 = s"foo,42,$NullSentinel"
 
       val input = csv(row1, row2, row3)
 
       val cols = NonEmptyList.of(
         Column("A", CHAR(3)),
-        Column("B", TINYINT(UNSIGNED)),
+        Column("B", TINYINT),
         Column("C", DATE))
 
       harnessed() use { case (xa, dest, path, tableName) =>
@@ -403,6 +402,5 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
-*/
   }
 }

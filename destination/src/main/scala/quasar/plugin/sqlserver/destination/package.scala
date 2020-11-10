@@ -21,10 +21,12 @@ import scala.Some
 import quasar.connector.render.RenderConfig
 
 package object destination {
+  val NullSentinel = ""
+
   val SQLServerCsvConfig: RenderConfig.Csv =
     RenderConfig.Csv(
       includeHeader = false,
-      nullSentinel = Some("NULL"),
+      nullSentinel = Some(NullSentinel),
       includeBom = false,
       booleanFormat = if (_) "1" else "0")
 }

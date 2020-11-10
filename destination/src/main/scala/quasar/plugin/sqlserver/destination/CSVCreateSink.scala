@@ -120,6 +120,7 @@ private[destination] object CsvCreateSink {
           copyOptions.setBatchSize(512)
           copyOptions.setUseInternalTransaction(false)
           copyOptions.setTableLock(true)
+          copyOptions.setKeepNulls(true)
           copyOptions.setBulkCopyTimeout(0) // no time limit; the bulk copy will wait indefinitely
           bulkCopy.setBulkCopyOptions(copyOptions)
           logger.debug(s"Set copy options for $unsafeObj")
