@@ -21,6 +21,7 @@ import quasar.plugin.sqlserver.TestHarness
 import scala.{text => _, Stream => _, _}, Predef._
 
 import java.time._
+import scala.util.Random
 
 import cats.data.NonEmptyList
 import cats.effect.{IO, Resource}
@@ -404,26 +405,27 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         Column("B", TINYINT),
         Column("C", DATE))
 
-      val testSchema = "testschema"
+      val testSchema = IO(Random.alphanumeric.take(6).mkString)
 
-      harnessed(schema = testSchema) use { case (xa, dest, path, tableName) =>
+      testSchema.flatMap(sch => harnessed(schema = sch) use { case (xa, dest, path, tableName) =>
         for {
-          _ <- frag(s"CREATE SCHEMA $testSchema").update.run.transact(xa)
+          _ <- frag(s"DROP SCHEMA IF EXISTS $sch").update.run.transact(xa)
+          _ <- frag(s"CREATE SCHEMA $sch").update.run.transact(xa)
 
           _ <- input.through(createSink(dest, path, cols)).compile.drain
 
           vals <-
-            frag(s"select A, B, C from $testSchema.$tableName")
+            frag(s"select A, B, C from $sch.$tableName")
               .query[(Option[String], Option[Int], Option[LocalDate])]
               .to[List].transact(xa)
         } yield {
           vals must contain(
             (Some("foo"), Some(42), Some(LocalDate.parse("1992-03-04"))))
         }
-      }
+      })
     }
 
-    "user defined schema" >> {
+    "Errors when table does not exist" >> {
       val row1 = s"foo,42,1992-03-04"
 
       val input = csv(row1)
@@ -433,11 +435,13 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         Column("B", TINYINT),
         Column("C", DATE))
 
-      val testSchema = "testschema"
+      val testSchema = IO(Random.alphanumeric.take(6).mkString)
 
-      harnessed(schema = testSchema) use { case (xa, dest, path, tableName) =>
+      testSchema.flatMap(sch => harnessed(schema = sch) use { case (xa, dest, path, tableName) =>
         for {
-          _ <- frag(s"CREATE SCHEMA $testSchema").update.run.transact(xa)
+          testSchema <- IO(Random.alphanumeric.take(6).mkString)
+          _ <- frag(s"DROP SCHEMA IF EXISTS $sch").update.run.transact(xa)
+          _ <- frag(s"CREATE SCHEMA $sch").update.run.transact(xa)
 
           _ <- input.through(createSink(dest, path, cols)).compile.drain
 
@@ -451,7 +455,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
               throwable.getMessage.take(19) mustEqual("Invalid object name")
           }
         }
-      }
+      })
     }
   }
 }
