@@ -16,8 +16,7 @@
 
 package quasar.plugin.sqlserver.destination
 
-import quasar.plugin.jdbc.Ident
-import quasar.plugin.sqlserver.{HI, SQLServerHygiene, TestHarness}
+import quasar.plugin.sqlserver.TestHarness
 
 import scala.{text => _, Stream => _, _}, Predef._
 
@@ -41,7 +40,7 @@ import quasar.plugin.jdbc.destination.WriteMode
 object SQLServerDestinationSpec extends TestHarness with Logging {
   import SQLServerType._
 
-  sequential // FIXME we need to be able to run multiple pushes at the same time
+  sequential // FIXME why don't these run in parallel
 
   def createSink(
       dest: SQLServerDestination[IO],
@@ -86,7 +85,6 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
   "write mode" >> {
     val cols = NonEmptyList.one(Column("value", CHAR(1)))
 
-  /*
     "create" >> {
       "succeeds when table absent" >> {
         harnessed(writeMode = WriteMode.Create) use { case (xa, dest, path, tableName) =>
@@ -107,7 +105,6 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
-    */
 
     "replace" >> {
       "succeeds when table absent" >> {
@@ -129,7 +126,6 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
-    /*
 
     "truncate" >> {
       "succeeds when table absent" >> {
@@ -151,7 +147,6 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
-    */
 
     "append" >> {
       "succeeds when table absent" >> {
@@ -225,13 +220,13 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     "string" >> {
       "text" >> ingestValues(TEXT, "føobår", " b a t") // TEXT doesn't support Unicode
 
-      //FIXME Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
+      //TODO Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
       "char" >> ingestValues(CHAR(6), "føobår", " b a t")
 
-      //FIXME Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
+      //TODO Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
       "varchar" >> ingestValues(VARCHAR(6), "føobår", " b a t")
 
-      //FIXME Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
+      //TODO Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
       "ntext" >> ingestValues(NTEXT, "føobår", " b a t")
 
       "nchar" >> ingestValues(NCHAR(6), "føobår", "  ひらがな", " b a t")
