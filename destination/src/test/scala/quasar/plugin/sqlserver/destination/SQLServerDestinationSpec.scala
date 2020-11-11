@@ -83,10 +83,10 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     }
   }
 
-  /*
   "write mode" >> {
     val cols = NonEmptyList.one(Column("value", CHAR(1)))
 
+  /*
     "create" >> {
       "succeeds when table absent" >> {
         harnessed(writeMode = WriteMode.Create) use { case (xa, dest, path, tableName) =>
@@ -107,6 +107,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
+    */
 
     "replace" >> {
       "succeeds when table absent" >> {
@@ -128,6 +129,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
+    /*
 
     "truncate" >> {
       "succeeds when table absent" >> {
@@ -149,6 +151,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
+    */
 
     "append" >> {
       "succeeds when table absent" >> {
@@ -171,7 +174,6 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       }
     }
   }
-*/
 
   "ingest" >> {
     "boolean" >> {

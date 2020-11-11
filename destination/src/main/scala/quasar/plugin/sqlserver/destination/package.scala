@@ -16,9 +16,15 @@
 
 package quasar.plugin.sqlserver
 
-import scala.Some
+import scala._, Predef._
 
 import quasar.connector.render.RenderConfig
+
+import cats.data.NonEmptyList
+import cats.implicits._
+
+import doobie._
+import doobie.implicits._
 
 package object destination {
   val NullSentinel = ""
@@ -29,4 +35,66 @@ package object destination {
       nullSentinel = Some(NullSentinel),
       includeBom = false,
       booleanFormat = if (_) "1" else "0")
+
+  def ifExists(logHandler: LogHandler)(unsafeName: String): Query0[Int] = {
+    (fr0"SELECT count(*) as exists_flag FROM [INFORMATION_SCHEMA].[TABLES] WHERE TABLE_NAME='" ++ Fragment.const0(unsafeName) ++ fr0"'")
+      .queryWithLogHandler[Int](logHandler)
+  }
+
+  def replaceTable(logHandler: LogHandler)(
+      objFragment: Fragment,
+      unsafeName: String,
+      columns: NonEmptyList[(HI, SQLServerType)])
+      : ConnectionIO[Int] =
+    ifExists(logHandler)(unsafeName).option flatMap { result =>
+      if (result.exists(_ == 1)) {
+        val drop = (fr"DROP TABLE" ++ objFragment)
+          .updateWithLogHandler(logHandler)
+          .run
+        drop >> createTable(logHandler)(objFragment, columns)
+      } else {
+        createTable(logHandler)(objFragment, columns)
+      }
+    }
+
+  def truncateTable(logHandler: LogHandler)(
+      objFragment: Fragment,
+      unsafeName: String,
+      columns: NonEmptyList[(HI, SQLServerType)])
+      : ConnectionIO[Int] =
+    ifExists(logHandler)(unsafeName).option flatMap { result =>
+      if (result.exists(_ == 1))
+        (fr"TRUNCATE TABLE" ++ objFragment)
+          .updateWithLogHandler(logHandler)
+          .run
+      else
+        createTable(logHandler)(objFragment, columns)
+    }
+
+  def appendToTable(logHandler: LogHandler)(
+      objFragment: Fragment,
+      unsafeName: String,
+      columns: NonEmptyList[(HI, SQLServerType)])
+      : ConnectionIO[Int] =
+    ifExists(logHandler)(unsafeName).option flatMap { result =>
+      if (result.exists(_ == 1))
+        0.pure[ConnectionIO]
+      else
+        createTable(logHandler)(objFragment, columns)
+    }
+
+  def createTable(logHandler: LogHandler)(
+      objFragment: Fragment,
+      columns: NonEmptyList[(HI, SQLServerType)])
+      : ConnectionIO[Int] =
+    (fr"CREATE TABLE" ++ objFragment ++ fr0" " ++ createColumnSpecs(columns))
+      .updateWithLogHandler(logHandler)
+      .run
+
+  def createColumnSpecs(cols: NonEmptyList[(HI, SQLServerType)]): Fragment =
+    Fragments.parentheses(
+      cols
+        .map { case (n, t) => Fragment.const(n.forSql) ++ t.asSql }
+        .intercalate(fr","))
+
 }

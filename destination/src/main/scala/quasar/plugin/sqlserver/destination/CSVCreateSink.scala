@@ -24,7 +24,6 @@ import java.io.InputStream
 
 import cats.data.NonEmptyList
 import cats.effect.ConcurrentEffect
-import cats.implicits._
 
 import com.microsoft.sqlserver.jdbc.{
   SQLServerBulkCopy,
@@ -63,25 +62,9 @@ private[destination] object CsvCreateSink {
       t => t.unsafeString,
       { case (d, t) => d.unsafeString ++ "." ++ t.unsafeString })
 
-    def dropTableIfExists =
-      (fr"DROP TABLE IF EXISTS" ++ objFragment)
-        .updateWithLogHandler(logHandler)
-        .run
-
-    // TODO test table truncate
-    def truncateTable =
-      (fr"TRUNCATE" ++ objFragment)
-        .updateWithLogHandler(logHandler)
-        .run
-
-    // TODO test table creation if not exists
-    def createTable(ifNotExists: Boolean): ConnectionIO[Int] = {
-      val stmt = if (ifNotExists) fr"CREATE TABLE IF NOT EXISTS" else fr"CREATE TABLE"
-
-      (stmt ++ objFragment ++ fr0" " ++ columnSpecs(cols))
-        .updateWithLogHandler(logHandler)
-        .run
-    }
+    val unsafeTableName = obj.fold(
+      t => t.unsafeString,
+      { case (_, t) => t.unsafeString })
 
     def loadCsv(bytes: InputStream, connection: java.sql.Connection): F[Unit] = {
       type Utilities = (SQLServerBulkCopy, SQLServerBulkCSVFileRecord, SQLServerBulkCopyOptions)
@@ -137,16 +120,16 @@ private[destination] object CsvCreateSink {
       for {
         _ <- writeMode match {
           case WriteMode.Create =>
-            createTable(ifNotExists = false)
+            createTable(logHandler)(objFragment, cols)
 
           case WriteMode.Replace =>
-            dropTableIfExists >> createTable(ifNotExists = false)
+            replaceTable(logHandler)(objFragment, unsafeTableName, cols)
 
           case WriteMode.Truncate =>
-            createTable(ifNotExists = true) >> truncateTable
+            truncateTable(logHandler)(objFragment, unsafeTableName, cols)
 
           case WriteMode.Append =>
-            createTable(ifNotExists = true)
+            appendToTable(logHandler)(objFragment, unsafeTableName, cols)
         }
       } yield ()
 
@@ -161,12 +144,6 @@ private[destination] object CsvCreateSink {
   }
 
   ////
-
-  private def columnSpecs(cols: NonEmptyList[(HI, SQLServerType)]): Fragment =
-    Fragments.parentheses(
-      cols
-        .map { case (n, t) => Fragment.const(n.forSql) ++ t.asSql }
-        .intercalate(fr","))
 
   private def toJdbcType(sqlServerType: SQLServerType): (JdbcType, Int, Int) =
     sqlServerType match {
