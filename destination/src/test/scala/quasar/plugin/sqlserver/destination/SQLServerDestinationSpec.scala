@@ -76,8 +76,6 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     harnessed(writeMode = WriteMode.Replace) use { case (xa, dest, path, tableName) =>
       for {
         _ <- input.through(createSink(dest, path, cols)).compile.drain
-        //_ = println(s"tableName: $tableName")
-        //_ = println(s"path in harnessed: $path")
         vals <- frag(s"select value from $tableName").query[A].to[List].transact(xa)
       } yield {
         vals must containTheSameElementsAs(expected)
