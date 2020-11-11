@@ -361,7 +361,6 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
           vals must contain(
             (LocalDate.parse("2020-07-12"), 123456.234234, "hello world", 887798),
             (LocalDate.parse("1983-02-17"), 732345.987, "lorum, ipsum", 42))
-
         }
       }
     }
@@ -391,6 +390,35 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
             (None, Some(42), Some(LocalDate.parse("1992-03-04"))),
             (Some("foo"), None, Some(LocalDate.parse("1992-03-04"))),
             (Some("foo"), Some(42), None))
+        }
+      }
+    }
+
+    "user defined schema" >> {
+      val row1 = s"foo,42,1992-03-04"
+
+      val input = csv(row1)
+
+      val cols = NonEmptyList.of(
+        Column("A", CHAR(3)),
+        Column("B", TINYINT),
+        Column("C", DATE))
+
+      val testSchema = "testschema"
+
+      harnessed(schema = testSchema) use { case (xa, dest, path, tableName) =>
+        for {
+          _ <- frag(s"CREATE SCHEMA $testSchema").update.run.transact(xa)
+
+          _ <- input.through(createSink(dest, path, cols)).compile.drain
+
+          vals <-
+            frag(s"select A, B, C from $testSchema.$tableName")
+              .query[(Option[String], Option[Int], Option[LocalDate])]
+              .to[List].transact(xa)
+        } yield {
+          vals must contain(
+            (Some("foo"), Some(42), Some(LocalDate.parse("1992-03-04"))))
         }
       }
     }
