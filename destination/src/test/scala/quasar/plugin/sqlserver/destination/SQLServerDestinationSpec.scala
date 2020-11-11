@@ -422,5 +422,36 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
+
+    "user defined schema" >> {
+      val row1 = s"foo,42,1992-03-04"
+
+      val input = csv(row1)
+
+      val cols = NonEmptyList.of(
+        Column("A", CHAR(3)),
+        Column("B", TINYINT),
+        Column("C", DATE))
+
+      val testSchema = "testschema"
+
+      harnessed(schema = testSchema) use { case (xa, dest, path, tableName) =>
+        for {
+          _ <- frag(s"CREATE SCHEMA $testSchema").update.run.transact(xa)
+
+          _ <- input.through(createSink(dest, path, cols)).compile.drain
+
+          attempted <-
+            frag(s"select A, B, C from nottestschema.$tableName")
+              .query[(Option[String], Option[Int], Option[LocalDate])]
+              .to[List].transact(xa).attempt
+        } yield {
+          attempted must beLike {
+            case Left(throwable) =>
+              throwable.getMessage.take(19) mustEqual("Invalid object name")
+          }
+        }
+      }
+    }
   }
 }
