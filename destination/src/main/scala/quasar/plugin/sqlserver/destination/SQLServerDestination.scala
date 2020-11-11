@@ -95,21 +95,18 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
           INT,
           DECIMAL,
           BIGINT,
-          MONEY,
           NUMERIC,
           REAL,
           SMALLINT,
-          SMALLMONEY,
           TINYINT)
 
       case ColumnType.String =>
         satisfied(
           TEXT,
-          VARCHAR,
-          CHAR,
           NCHAR,
           NVARCHAR,
-          UNIQUEIDENTIFIER)
+          CHAR,
+          VARCHAR)
 
       case _ => TypeCoercion.Unsatisfied(Nil, None)
     }

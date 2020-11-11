@@ -220,25 +220,24 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         val max = BigDecimal("999999999999999999999999999999999999.99")
         ingestValues(DECIMAL(38, 2), min, mid, max)
       }
-
-      // FIXME why no money?!
-      //"money" >> ingestValues(MONEY, BigDecimal(-922337203685477.5808), BigDecimal(0), BigDecimal(922337203685477.5807))
-      //"smallmoney" >> ingestValues(SMALLMONEY, -214748.3648, 0, 214748.3647)
     }
 
-    // FIXME why no unicode!?
-    // char, nchar, nvarchar, text, uniqueid, varchar
-    //"string" >> {
-      //"text" >> ingestValues(TEXT, "føobår", "  ひらがな", " b a t")
+    "string" >> {
+      "text" >> ingestValues(TEXT, "føobår", " b a t") // TEXT doesn't support Unicode
 
-      //"char" >> ingestValues(CHAR(6), "føobår", "  ひらがな", " b a t")
+      //FIXME Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
+      "char" >> ingestValues(CHAR(6), "føobår", " b a t")
 
-      //"varchar" >> ingestValues(VARCHAR(6), "føobår", "  ひらがな", " b a t")
+      //FIXME Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
+      "varchar" >> ingestValues(VARCHAR(6), "føobår", " b a t")
 
-      //"nchar" >> ingestValues(NCHAR(6), "føobår", "  ひらがな", " b a t")
+      //FIXME Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
+      "ntext" >> ingestValues(NTEXT, "føobår", " b a t")
 
-      //"nvarchar" >> ingestValues(NVARCHAR(6), "føobår", "ひらがな", "b a t")
-    //}
+      "nchar" >> ingestValues(NCHAR(6), "føobår", "  ひらがな", " b a t")
+
+      "nvarchar" >> ingestValues(NVARCHAR(6), "føobår", "ひらがな", "b a t")
+    }
 
     "temporal" >> {
       "date" >> {
@@ -320,7 +319,6 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
           expectedMinDateTime, expectedMidDateTime, expectedMaxDateTime)
       }
     }
-    /*
 
     "containing special characters" >> {
       val escA = """"foo,"",,""""""""
@@ -344,7 +342,6 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         }
       }
     }
-    */
 
     "multiple fields with double-quoted string" >> {
       val row1 = "2020-07-12,123456.234234,\"hello world\",887798"

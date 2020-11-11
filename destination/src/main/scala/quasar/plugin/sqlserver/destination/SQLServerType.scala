@@ -78,15 +78,13 @@ object SQLServerType {
 
   case object INT extends SQLServerTypeId.SelfIdentified("INT", 9)
 
-  case object MONEY extends SQLServerTypeId.SelfIdentified("MONEY", 10)
-
   final case class NCHAR(length: Int) extends SQLServerType(s"NCHAR($length)")
-  case object NCHAR extends SQLServerTypeId.HigherKinded(11) {
+  case object NCHAR extends SQLServerTypeId.HigherKinded(10) {
     val constructor = Constructor.Unary(LengthCharsParam(4000), NCHAR(_))
   }
 
   final case class NUMERIC(precision: Int, scale: Int) extends SQLServerType(s"NUMERIC($precision, $scale)")
-  case object NUMERIC extends SQLServerTypeId.HigherKinded(12) {
+  case object NUMERIC extends SQLServerTypeId.HigherKinded(11) {
     val constructor = {
       val precisionParam: Labeled[Formal[Int]] =
         Labeled("Precision", Formal.integer(Some(Ior.both(1, 38)), None, None))
@@ -102,9 +100,11 @@ object SQLServerType {
   }
 
   final case class NVARCHAR(length: Int) extends SQLServerType(s"NVARCHAR($length)")
-  case object NVARCHAR extends SQLServerTypeId.HigherKinded(13) {
+  case object NVARCHAR extends SQLServerTypeId.HigherKinded(12) {
     val constructor = Constructor.Unary(LengthCharsParam(4000), NVARCHAR(_))
   }
+
+  case object NTEXT extends SQLServerTypeId.SelfIdentified("NTEXT", 13)
 
   case object REAL extends SQLServerTypeId.SelfIdentified("REAL", 14)
 
@@ -112,21 +112,17 @@ object SQLServerType {
 
   case object SMALLINT extends SQLServerTypeId.SelfIdentified("SMALLINT", 16)
 
-  case object SMALLMONEY extends SQLServerTypeId.SelfIdentified("SMALLMONEY", 17)
-
-  case object TEXT extends SQLServerTypeId.SelfIdentified("TEXT", 18)
+  case object TEXT extends SQLServerTypeId.SelfIdentified("TEXT", 17)
 
   final case class TIME(precision: Int) extends SQLServerType(s"TIME($precision)")
-  case object TIME extends SQLServerTypeId.HigherKinded(19) {
+  case object TIME extends SQLServerTypeId.HigherKinded(18) {
     val constructor = Constructor.Unary(PrecisionDateTimeParam(7), TIME(_))
   }
 
-  case object TINYINT extends SQLServerTypeId.SelfIdentified("TINYINT", 20)
-
-  case object UNIQUEIDENTIFIER extends SQLServerTypeId.SelfIdentified("UNIQUEIDENTIFIER", 21)
+  case object TINYINT extends SQLServerTypeId.SelfIdentified("TINYINT", 19)
 
   final case class VARCHAR(length: Int) extends SQLServerType(s"VARCHAR($length)")
-  case object VARCHAR extends SQLServerTypeId.HigherKinded(22) {
+  case object VARCHAR extends SQLServerTypeId.HigherKinded(20) {
     val constructor = Constructor.Unary(LengthCharsParam(8000), VARCHAR(_))
   }
 
@@ -168,17 +164,15 @@ object SQLServerTypeId {
       DECIMAL,
       FLOAT,
       INT,
-      MONEY,
       NCHAR,
       NUMERIC,
+      NTEXT,
       NVARCHAR,
       REAL,
       SMALLDATETIME,
       SMALLINT,
-      SMALLMONEY,
       TEXT,
       TIME,
       TINYINT,
-      UNIQUEIDENTIFIER,
       VARCHAR)
 }
