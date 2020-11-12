@@ -48,8 +48,7 @@ final class SQLServerColumnRender private (columns: Map[String, SQLServerType])
 
   def renderBigDecimal(columnName: String, value: BigDecimal): CharSequence = value.toString
 
-  // TODO precend with N'sdfsdfs'
-  def renderString(columnName: String, value: String): CharSequence = quote(value.replaceAll("'", "''"))
+  def renderString(columnName: String, value: String): CharSequence = "N" + quote(value.replaceAll("'", "''"))
 
   def renderLocalTime(columnName: String, value: LocalTime): CharSequence = quote(value.format(DateTimeFormatter.ofPattern("HH:mm:ss")))
 
