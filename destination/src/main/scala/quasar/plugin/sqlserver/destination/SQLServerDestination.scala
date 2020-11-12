@@ -16,8 +16,6 @@
 
 package quasar.plugin.sqlserver.destination
 
-import quasar.plugin.sqlserver._
-
 import quasar.api.Column
 import quasar.api.resource.ResourcePath
 
