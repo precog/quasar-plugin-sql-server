@@ -20,6 +20,7 @@ import quasar.plugin.sqlserver.TestHarness
 
 import scala.{text => _, Stream => _, _}, Predef._
 
+import java.lang.CharSequence
 import java.time._
 import scala.util.Random
 
@@ -47,8 +48,8 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       dest: SQLServerDestination[IO],
       path: ResourcePath,
       cols: NonEmptyList[Column[SQLServerType]])
-      : Pipe[IO, Byte, Unit] =
-    dest.createSink.consume(path, cols)._2
+      : Pipe[IO, CharSequence, Unit] =
+    dest.createSink(path, cols)._2
 
   def harnessed(
       jdbcUrl: String = TestUrl(Some(TestDb)),
@@ -61,16 +62,18 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       }
     }
 
-  def csv(lines: String*): Stream[IO, Byte] =
+  def quote(chars: String): String = s"'$chars'"
+
+  def delim(lines: String*): Stream[IO, CharSequence] =
     Stream.emits(lines)
-      .intersperse("\r\n")
-      .through(text.utf8Encode)
+      //.intersperse("\r\n")
+      //.through(text.utf8Encode) // FIXME utf8encode?
 
   def ingestValues[A: Read](tpe: SQLServerType, values: A*) =
     ingestValuesWithExpected(tpe, values: _*)(values: _*)
 
   def ingestValuesWithExpected[A: Read](tpe: SQLServerType, values: A*)(expected: A*) = {
-    val input = csv(values.map(_.toString): _*)
+    val input = delim(values.map(_.toString): _*)
     val cols = NonEmptyList.one(Column("value", tpe))
 
     harnessed(writeMode = WriteMode.Replace) use { case (xa, dest, path, tableName) =>
@@ -89,7 +92,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     "create" >> {
       "succeeds when table absent" >> {
         harnessed(writeMode = WriteMode.Create) use { case (xa, dest, path, tableName) =>
-          csv("A", "B")
+          delim("'A'", "'B'")
             .through(createSink(dest, path, cols))
             .compile.drain.attempt.map(_ must beRight)
         }
@@ -98,8 +101,8 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       "fails when table present" >> {
         harnessed(writeMode = WriteMode.Create) use { case (xa, dest, path, tableName) =>
           for {
-            _ <- csv("A", "B").through(createSink(dest, path, cols)).compile.drain
-            r <- csv("A", "B").through(createSink(dest, path, cols)).compile.drain.attempt
+            _ <- delim("'A'", "'B'").through(createSink(dest, path, cols)).compile.drain
+            r <- delim("'A'", "'B'").through(createSink(dest, path, cols)).compile.drain.attempt
           } yield {
             r must beLeft
           }
@@ -110,7 +113,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     "replace" >> {
       "succeeds when table absent" >> {
         harnessed(writeMode = WriteMode.Replace) use { case (xa, dest, path, tableName) =>
-          csv("A", "B")
+          delim("'A'", "'B'")
             .through(createSink(dest, path, cols))
             .compile.drain.attempt.map(_ must beRight)
         }
@@ -119,8 +122,8 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       "succeeds when table present" >> {
         harnessed(writeMode = WriteMode.Replace) use { case (xa, dest, path, tableName) =>
           for {
-            _ <- csv("A", "B").through(createSink(dest, path, cols)).compile.drain
-            r <- csv("A", "B").through(createSink(dest, path, cols)).compile.drain.attempt
+            _ <- delim("'A'", "'B'").through(createSink(dest, path, cols)).compile.drain
+            r <- delim("'A'", "'B'").through(createSink(dest, path, cols)).compile.drain.attempt
           } yield {
             r must beRight
           }
@@ -131,7 +134,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     "truncate" >> {
       "succeeds when table absent" >> {
         harnessed(writeMode = WriteMode.Truncate) use { case (xa, dest, path, tableName) =>
-          csv("A", "B")
+          delim("'A'", "'B'")
             .through(createSink(dest, path, cols))
             .compile.drain.attempt.map(_ must beRight)
         }
@@ -140,8 +143,8 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       "succeeds when table present" >> {
         harnessed(writeMode = WriteMode.Truncate) use { case (xa, dest, path, tableName) =>
           for {
-            _ <- csv("A", "B").through(createSink(dest, path, cols)).compile.drain
-            r <- csv("A", "B").through(createSink(dest, path, cols)).compile.drain.attempt
+            _ <- delim("'A'", "'B'").through(createSink(dest, path, cols)).compile.drain
+            r <- delim("'A'", "'B'").through(createSink(dest, path, cols)).compile.drain.attempt
           } yield {
             r must beRight
           }
@@ -152,7 +155,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     "append" >> {
       "succeeds when table absent" >> {
         harnessed(writeMode = WriteMode.Append) use { case (xa, dest, path, tableName) =>
-          csv("A", "B")
+          delim("'A'", "'B'")
             .through(createSink(dest, path, cols))
             .compile.drain.attempt.map(_ must beRight)
         }
@@ -161,8 +164,8 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       "succeeds when table present" >> {
         harnessed(writeMode = WriteMode.Append) use { case (xa, dest, path, tableName) =>
           for {
-            _ <- csv("A", "B").through(createSink(dest, path, cols)).compile.drain
-            r <- csv("A", "B").through(createSink(dest, path, cols)).compile.drain.attempt
+            _ <- delim("'A'", "'B'").through(createSink(dest, path, cols)).compile.drain
+            r <- delim("'A'", "'B'").through(createSink(dest, path, cols)).compile.drain.attempt
           } yield {
             r must beRight
           }
@@ -173,7 +176,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
 
   "ingest" >> {
     "boolean" >> {
-      val input = csv("1", "0")
+      val input = delim("1", "0")
       val cols = NonEmptyList.one(Column("thebool", BIT))
 
       harnessed() use { case (xa, dest, path, tableName) =>
@@ -219,20 +222,21 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     }
 
     "string" >> {
-      "text" >> ingestValues(TEXT, "føobår", " b a t") // TEXT doesn't support Unicode
+      // TEXT doesn't support Unicode
+      "text" >> ingestValuesWithExpected(TEXT, "'føobår'", "' b a t'")("føobår", " b a t")
 
       //TODO Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
-      "char" >> ingestValues(CHAR(6), "føobår", " b a t")
+      "char" >> ingestValuesWithExpected(CHAR(6), "'føobår'", "' b a t'")("føobår", " b a t")
 
       //TODO Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
-      "varchar" >> ingestValues(VARCHAR(6), "føobår", " b a t")
+      "varchar" >> ingestValuesWithExpected(VARCHAR(6), "'føobår'", "' b a t'")("føobår", " b a t")
 
       //TODO Unicode: COLLATE Latin1_General_100_CI_AI_SC_UTF8
-      "ntext" >> ingestValues(NTEXT, "føobår", " b a t")
+      "ntext" >> ingestValuesWithExpected(NTEXT, "'føobår'", "' b a t'")("føobår", " b a t")
 
-      "nchar" >> ingestValues(NCHAR(6), "føobår", "  ひらがな", " b a t")
+      "nchar" >> ingestValuesWithExpected(NCHAR(6), "'føobår'", "N'  ひらがな'", "' b a t'")("føobår", "  ひらがな", " b a t")
 
-      "nvarchar" >> ingestValues(NVARCHAR(6), "føobår", "ひらがな", "b a t")
+      "nvarchar" >> ingestValuesWithExpected(NVARCHAR(6), "'føobår'", "N'  ひらがな'", "' b a t'")("føobår", "  ひらがな", " b a t")
     }
 
     "temporal" >> {
@@ -241,7 +245,8 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         val midDate = "2020-11-09"
         val maxDate = "9999-12-31"
 
-        ingestValues(DATE, minDate, midDate, maxDate)
+        ingestValuesWithExpected(DATE, quote(minDate), quote(midDate), quote(maxDate))(
+          minDate, midDate, maxDate)
       }
 
       "time" >> {
@@ -250,7 +255,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         val midTimeNoMs = "11:13:52"
         val maxTime = "23:59:59.000000"
 
-        ingestValuesWithExpected(TIME(6), minTime, midTime, midTimeNoMs, maxTime)(
+        ingestValuesWithExpected(TIME(6), quote(minTime), quote(midTime), quote(midTimeNoMs), quote(maxTime))(
           minTime, midTime, "11:13:52.000000", maxTime)
       }
 
@@ -266,7 +271,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         val expectedMaxDateTime = "9999-12-31 23:59:59.997"
 
         ingestValuesWithExpected(DATETIME,
-          minDateTime, midDateTime, midDateTimeNoMs, maxDateTime)(
+          quote(minDateTime), quote(midDateTime), quote(midDateTimeNoMs), quote(maxDateTime))(
           expectedMinDateTime, expectedMidDateTime, expectedMidDateTimeNoMs, expectedMaxDateTime)
       }
 
@@ -282,7 +287,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         val expectedMaxDateTime = "9999-12-31 23:59:59.999999"
 
         ingestValuesWithExpected(DATETIME2(6),
-          minDateTime, midDateTime, midDateTimeNoMs, maxDateTime)(
+          quote(minDateTime), quote(midDateTime), quote(midDateTimeNoMs), quote(maxDateTime))(
           expectedMinDateTime, expectedMidDateTime, expectedMidDateTimeNoMs, expectedMaxDateTime)
       }
 
@@ -298,7 +303,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         val expectedMaxDateTime = "9999-12-31 23:59:59.999999 +14:00"
 
         ingestValuesWithExpected(DATETIMEOFFSET(6),
-          minDateTime, midDateTime, midDateTimeNoMs, maxDateTime)(
+          quote(minDateTime), quote(midDateTime), quote(midDateTimeNoMs), quote(maxDateTime))(
           expectedMinDateTime, expectedMidDateTime, expectedMidDateTimeNoMs, expectedMaxDateTime)
       }
 
@@ -311,19 +316,19 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         val expectedMidDateTime = "2020-11-09 04:12:00.0"
         val expectedMaxDateTime = "2079-06-06 23:59:00.0"
 
-        ingestValuesWithExpected(SMALLDATETIME, minDateTime, midDateTime, maxDateTime)(
+        ingestValuesWithExpected(SMALLDATETIME, quote(minDateTime), quote(midDateTime), quote(maxDateTime))(
           expectedMinDateTime, expectedMidDateTime, expectedMaxDateTime)
       }
     }
 
     "containing special characters" >> {
-      val escA = """"foo,"",,""""""""
-      val escB = """"java""script""""""
+      val escA = "'foo,\",,\"\"'"
+      val escB = "'java\"script\"'"
 
       val A = "foo,\",,\"\""
       val B = "java\"script\""
 
-      val input = csv(escA, escB)
+      val input = delim(escA, escB)
       val cols = NonEmptyList.one(Column("value", VARCHAR(12)))
 
       harnessed() use { case (xa, dest, path, tableName) =>
@@ -340,10 +345,10 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     }
 
     "multiple fields with double-quoted string" >> {
-      val row1 = "2020-07-12,123456.234234,\"hello world\",887798"
-      val row2 = "1983-02-17,732345.987,\"lorum, ipsum\",42"
+      val row1 = "'2020-07-12',123456.234234,'hello world',887798"
+      val row2 = "'1983-02-17',732345.987,'lorum, ipsum',42"
 
-      val input = csv(row1, row2)
+      val input = delim(row1, row2)
 
       val cols: NonEmptyList[Column[SQLServerType]] = NonEmptyList.of(
         Column("A", DATE),
@@ -367,11 +372,11 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     }
 
     "undefined fields" >> {
-      val row1 = s"$NullSentinel,42,1992-03-04"
-      val row2 = s"foo,$NullSentinel,1992-03-04"
-      val row3 = s"foo,42,$NullSentinel"
+      val row1 = s"NULL,42,'1992-03-04'"
+      val row2 = s"'foo',NULL,'1992-03-04'"
+      val row3 = s"'foo',42,NULL"
 
-      val input = csv(row1, row2, row3)
+      val input = delim(row1, row2, row3)
 
       val cols = NonEmptyList.of(
         Column("A", CHAR(3)),
@@ -396,9 +401,9 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     }
 
     "user defined schema" >> {
-      val row1 = s"foo,42,1992-03-04"
+      val row1 = s"'foo',42,'1992-03-04'"
 
-      val input = csv(row1)
+      val input = delim(row1)
 
       val cols = NonEmptyList.of(
         Column("A", CHAR(3)),
@@ -427,9 +432,9 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     }
 
     "Errors when table does not exist" >> {
-      val row1 = s"foo,42,1992-03-04"
+      val row1 = "'foo',42,'1992-03-04'"
 
-      val input = csv(row1)
+      val input = delim(row1)
 
       val cols = NonEmptyList.of(
         Column("A", CHAR(3)),
