@@ -50,20 +50,8 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
   val destinationType = SQLServerDestinationModule.destinationType
 
-  val createSink: ResultSink.CreateSink[F, Type, Byte] = {
-    val jdbcSink =
-      JdbcCreateSink[F, Type](
-        SQLServerHygiene, logger)(
-        CsvCreateSink(writeMode, xa, logger))
-
-    ResultSink.CreateSink {
-      case (path, ts) =>
-        val pathWithSchema = path./:(ResourceName(schema))
-        (SQLServerCsvConfig, jdbcSink(pathWithSchema, ts))
-    }
-  }
-
-  val sinks = NonEmptyList.one(createSink)
+  val sinks = NonEmptyList.one(
+    ResultSink.create(CsvCreateSink[F](writeMode, xa, logger)))
 
   val typeIdOrdinal: Prism[Int, TypeId] =
     Prism(SQLServerDestination.OrdinalMap.get(_))(_.ordinal)
