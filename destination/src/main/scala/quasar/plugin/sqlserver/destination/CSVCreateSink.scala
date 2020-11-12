@@ -16,9 +16,10 @@
 
 package quasar.plugin.sqlserver.destination
 
-import quasar.api.Column
-import quasar.api.resource.ResourcePath
 import quasar.plugin.sqlserver._
+
+import quasar.api.Column
+import quasar.api.resource.{ResourceName, ResourcePath}
 import quasar.connector.render.RenderConfig
 
 import scala._, Predef._
@@ -43,7 +44,8 @@ private[destination] object CsvCreateSink {
   def apply[F[_]: ConcurrentEffect](
       writeMode: WriteMode,
       xa: Transactor[F],
-      logger: Logger)(
+      logger: Logger,
+      schema: String)(
       path: ResourcePath,
       columns: NonEmptyList[Column[SQLServerType]])
       : (RenderConfig[CharSequence], Pipe[F, CharSequence, Unit]) = {
@@ -55,7 +57,8 @@ private[destination] object CsvCreateSink {
     val hygienicColumns: NonEmptyList[(HI, SQLServerType)] =
       columns.map(c => (SQLServerHygiene.hygienicIdent(Ident(c.name)), c.tpe))
 
-    val obj = jdbc.resourcePathRef(path).get // FIXME
+    val pathWithSchema = path./:(ResourceName(schema))
+    val obj = jdbc.resourcePathRef(pathWithSchema).get // FIXME
 
     val objFragment: Fragment = obj.fold(
       t => Fragment.const0(SQLServerHygiene.hygienicIdent(t).forSql),
@@ -64,10 +67,6 @@ private[destination] object CsvCreateSink {
         fr0"." ++
         Fragment.const0(SQLServerHygiene.hygienicIdent(t).forSql)
       })
-
-    //val unsafeObj: String = obj.fold(
-    //  t => t.unsafeString,
-    //  { case (d, t) => d.unsafeString ++ "." ++ t.unsafeString })
 
     val unsafeTableName: String = obj.fold(
       t => t.asString,
