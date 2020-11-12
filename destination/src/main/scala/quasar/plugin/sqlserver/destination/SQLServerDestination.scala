@@ -31,10 +31,9 @@ import org.slf4s.Logger
 
 import quasar.api.{ColumnType, Label}
 import quasar.api.push.TypeCoercion
-import quasar.api.resource.ResourceName
 import quasar.connector.MonadResourceErr
 import quasar.connector.destination.{Constructor, Destination, ResultSink}
-import quasar.plugin.jdbc.destination.{JdbcCreateSink, WriteMode}
+import quasar.plugin.jdbc.destination.WriteMode
 
 private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: MonadResourceErr: Timer](
     writeMode: WriteMode,
@@ -51,7 +50,7 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
   val destinationType = SQLServerDestinationModule.destinationType
 
   val sinks = NonEmptyList.one(
-    ResultSink.create(CsvCreateSink[F](writeMode, xa, logger)))
+    ResultSink.create(CsvCreateSink[F](writeMode, xa, logger, schema)))
 
   val typeIdOrdinal: Prism[Int, TypeId] =
     Prism(SQLServerDestination.OrdinalMap.get(_))(_.ordinal)
