@@ -70,10 +70,19 @@ final class SQLServerColumnRender private (columns: Map[String, SQLServerType])
     renderUndefined(columnName)
 
   def renderLocalDateTime(columnName: String, value: LocalDateTime): CharSequence =
-    quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSS")))
+    columns.get(columnName) match {
+      case Some(SQLServerType.DATETIME) =>
+        quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")))
+      case Some(SQLServerType.SMALLDATETIME) =>
+        quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")))
+      case Some(SQLServerType.DATETIME2(_)) =>
+        quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS")))
+      case _ =>
+        renderUndefined(columnName)
+    }
 
   def renderOffsetDateTime(columnName: String, value: OffsetDateTime): CharSequence =
-    quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSZ")))
+    quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSxxx")))
 
   def renderInterval(columnName: String, value: DateTimeInterval): CharSequence =
     renderUndefined(columnName)
