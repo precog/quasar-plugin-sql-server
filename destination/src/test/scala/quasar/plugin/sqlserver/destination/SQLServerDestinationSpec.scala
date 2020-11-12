@@ -324,11 +324,13 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
     "containing special characters" >> {
       val escA = "'foo,\",,\"\"'"
       val escB = "'java\"script\"'"
+      val escC = "'thisis''stuff'"
 
       val A = "foo,\",,\"\""
       val B = "java\"script\""
+      val C = "thisis'stuff"
 
-      val input = delim(escA, escB)
+      val input = delim(escA, escB, escC)
       val cols = NonEmptyList.one(Column("value", VARCHAR(12)))
 
       harnessed() use { case (xa, dest, path, tableName) =>
@@ -339,7 +341,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
             frag(s"select value from $tableName")
               .query[String].to[List].transact(xa)
         } yield {
-          vals must contain(A, B)
+          vals must contain(A, B, C)
         }
       }
     }
