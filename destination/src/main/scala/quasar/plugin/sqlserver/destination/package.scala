@@ -17,7 +17,9 @@
 package quasar.plugin.sqlserver
 
 import scala._, Predef._
+import java.lang.CharSequence
 
+//import quasar.api.Column
 import quasar.connector.render.RenderConfig
 
 import cats.data.NonEmptyList
@@ -25,6 +27,8 @@ import cats.implicits._
 
 import doobie._
 import doobie.implicits._
+
+import fs2.Chunk
 
 package object destination {
   val NullSentinel = ""
@@ -103,4 +107,46 @@ package object destination {
         .map { case (n, t) => Fragment.const(n.forSql) ++ t.asSql }
         .intercalate(fr","))
 
+  def insertColumnSpecs(cols: NonEmptyList[(HI, SQLServerType)]): Fragment =
+    Fragments.parentheses(
+      cols
+        .map { case (n, _) => Fragment.const(n.forSql) }
+        .intercalate(fr","))
+
+  def insertIntoPrefix(
+    logHandler: LogHandler)(
+    objFragment: Fragment,
+    cols: NonEmptyList[(HI, SQLServerType)])
+      : (StringBuilder, Int) = {
+    val value = (
+      fr"INSERT INTO" ++
+        objFragment ++
+        insertColumnSpecs(cols) ++
+        fr0" VALUES (").updateWithLogHandler(logHandler).sql
+
+    val builder = new StringBuilder(value)
+
+    (builder, builder.length)
+  }
+
+  def insertChunk(
+    logHandler: LogHandler)(
+    objFragment: Fragment,
+    cols: NonEmptyList[(HI, SQLServerType)],
+    chunk: Chunk[CharSequence])
+      : ConnectionIO[Unit] = {
+    val (prefix, length) = insertIntoPrefix(logHandler)(objFragment, cols)
+    val batch = FS.raw { statement =>
+      chunk foreach { value =>
+        val sql = prefix.append(value).append(')')
+
+        statement.addBatch(sql.toString)
+        prefix.setLength(length)
+      }
+
+      statement.executeBatch()
+    }
+
+    HC.createStatement(batch).void
+  }
 }
