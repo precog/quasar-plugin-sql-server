@@ -43,11 +43,13 @@ import quasar.qscript.InterpretedRead
 object SQLServerDatasourceSpec extends TestHarness with Logging {
   import RValue._
 
+  sequential // FIXME why don't these run in parallel
+
   type DS = LightweightDatasourceModule.DS[IO]
 
   def harnessed(jdbcUrl: String = TestUrl(Some(TestDb)))
       : Resource[IO, (Transactor[IO], DS, ResourcePath, String)] =
-    tableHarness(jdbcUrl) map {
+    tableHarness(jdbcUrl, true) map {
       case (xa, path, name) =>
         val disc = JdbcDiscovery(SQLServerDatasourceModule.discoverableTableTypes(log))
         (xa, SQLServerDatasource(xa, disc, log), path, name)

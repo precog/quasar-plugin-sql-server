@@ -31,7 +31,7 @@ lazy val publishTestsSettings = Seq(
 lazy val root = project
   .in(file("."))
   .settings(noPublishSettings)
-  .aggregate(core, datasource)
+  .aggregate(core, datasource, destination)
 
 lazy val core = project
   .in(file("core"))
@@ -51,6 +51,22 @@ lazy val datasource = project
     quasarPluginName := "sql-server",
     quasarPluginQuasarVersion := quasarVersion.value,
     quasarPluginDatasourceFqcn := Some("quasar.plugin.sqlserver.datasource.SQLServerDatasourceModule$"),
+
+    quasarPluginDependencies ++= Seq(
+      "com.precog"              %% "quasar-plugin-jdbc" % quasarPluginJdbcVersion.value,
+      "com.microsoft.sqlserver" %  "mssql-jdbc"         % "8.4.1.jre8"
+    ))
+  .enablePlugins(QuasarPlugin)
+
+lazy val destination = project
+  .in(file("destination"))
+  .dependsOn(core % BothScopes)
+  .settings(
+    name := "quasar-destination-sql-server",
+
+    quasarPluginName := "sql-server",
+    quasarPluginQuasarVersion := quasarVersion.value,
+    quasarPluginDatasourceFqcn := Some("quasar.plugin.sqlserver.destination.SQLServerDestinationModule$"),
 
     quasarPluginDependencies ++= Seq(
       "com.precog"              %% "quasar-plugin-jdbc" % quasarPluginJdbcVersion.value,
