@@ -36,34 +36,47 @@ final class SQLServerColumnRender private (columns: Map[String, SQLServerType])
 
   def renderNull(columnName: String): CharSequence = "NULL"
 
-  def renderEmptyArray(columnName: String): CharSequence = renderUndefined(columnName)
+  def renderEmptyArray(columnName: String): CharSequence =
+    renderUndefined(columnName)
 
-  def renderEmptyObject(columnName: String): CharSequence = renderUndefined(columnName)
+  def renderEmptyObject(columnName: String): CharSequence =
+    renderUndefined(columnName)
 
-  def renderBoolean(columnName: String, value: Boolean): CharSequence = if (value) "1" else "0"
+  def renderBoolean(columnName: String, value: Boolean): CharSequence =
+    if (value) "1" else "0"
 
-  def renderLong(columnName: String, value: Long): CharSequence = value.toString
+  def renderLong(columnName: String, value: Long): CharSequence =
+    value.toString
 
-  def renderDouble(columnName: String, value: Double): CharSequence = value.toString
+  def renderDouble(columnName: String, value: Double): CharSequence =
+    value.toString
 
-  def renderBigDecimal(columnName: String, value: BigDecimal): CharSequence = value.toString
+  def renderBigDecimal(columnName: String, value: BigDecimal): CharSequence =
+    value.toString
 
-  def renderString(columnName: String, value: String): CharSequence = "N" + quote(value.replaceAll("'", "''"))
+  def renderString(columnName: String, value: String): CharSequence =
+    "N" + quote(value.replaceAll("'", "''"))
 
-  def renderLocalTime(columnName: String, value: LocalTime): CharSequence = quote(value.format(DateTimeFormatter.ofPattern("HH:mm:ss")))
+  def renderLocalTime(columnName: String, value: LocalTime): CharSequence =
+    quote(value.format(DateTimeFormatter.ofPattern("HH:mm:ss")))
 
-  def renderOffsetTime(columnName: String, value: OffsetTime): CharSequence = renderUndefined(columnName)
+  def renderOffsetTime(columnName: String, value: OffsetTime): CharSequence =
+    renderUndefined(columnName)
 
-  def renderLocalDate(columnName: String, value: LocalDate): CharSequence = quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")))
+  def renderLocalDate(columnName: String, value: LocalDate): CharSequence =
+    quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")))
 
-  def renderOffsetDate(columnName: String, value: OffsetDate): CharSequence = renderUndefined(columnName)
+  def renderOffsetDate(columnName: String, value: OffsetDate): CharSequence =
+    renderUndefined(columnName)
 
   def renderLocalDateTime(columnName: String, value: LocalDateTime): CharSequence =
     quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSS")))
 
-  def renderOffsetDateTime(columnName: String, value: OffsetDateTime): CharSequence = renderUndefined(columnName)
+  def renderOffsetDateTime(columnName: String, value: OffsetDateTime): CharSequence =
+    quote(value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSZ")))
 
-  def renderInterval(columnName: String, value: DateTimeInterval): CharSequence = renderUndefined(columnName)
+  def renderInterval(columnName: String, value: DateTimeInterval): CharSequence =
+    renderUndefined(columnName)
 
   ////
 
