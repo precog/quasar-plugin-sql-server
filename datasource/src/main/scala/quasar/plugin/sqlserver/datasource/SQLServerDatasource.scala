@@ -32,8 +32,8 @@ import doobie.implicits._
 
 import quasar.connector.MonadResourceErr
 import quasar.connector.datasource.{LightweightDatasourceModule, Loader}
-import quasar.plugin.jdbc._
-import quasar.plugin.jdbc.datasource._
+import quasar.lib.jdbc._
+import quasar.lib.jdbc.datasource._
 
 import org.slf4s.Logger
 

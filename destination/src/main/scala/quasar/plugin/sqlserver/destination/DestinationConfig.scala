@@ -25,7 +25,7 @@ import argonaut._, Argonaut._
 import cats._
 import cats.implicits._
 
-import quasar.plugin.jdbc.destination.WriteMode
+import quasar.lib.jdbc.destination.WriteMode
 
 final case class DestinationConfig(
     connectionConfig: ConnectionConfig,

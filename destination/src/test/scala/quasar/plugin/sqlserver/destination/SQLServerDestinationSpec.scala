@@ -37,7 +37,7 @@ import org.slf4s.Logging
 
 import quasar.api.Column
 import quasar.api.resource._
-import quasar.plugin.jdbc.destination.WriteMode
+import quasar.lib.jdbc.destination.WriteMode
 
 object SQLServerDestinationSpec extends TestHarness with Logging {
   import SQLServerType._

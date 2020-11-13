@@ -34,7 +34,7 @@ import quasar.api.{ColumnType, Label}
 import quasar.api.push.TypeCoercion
 import quasar.connector.MonadResourceErr
 import quasar.connector.destination.{Constructor, Destination, ResultSink}
-import quasar.plugin.jdbc.destination.WriteMode
+import quasar.lib.jdbc.destination.WriteMode
 
 private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: MonadResourceErr: Timer](
     writeMode: WriteMode,
