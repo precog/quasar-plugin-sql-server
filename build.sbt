@@ -73,3 +73,4 @@ lazy val destination = project
       "com.microsoft.sqlserver" %  "mssql-jdbc"      % "8.4.1.jre8"
     ))
   .enablePlugins(QuasarPlugin)
+  .evictToLocal("QUASAR_PATH", "connector", true)
