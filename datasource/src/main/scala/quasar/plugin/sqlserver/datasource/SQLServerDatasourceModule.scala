@@ -23,8 +23,8 @@ import quasar.api.datasource.{DatasourceType, DatasourceError}
 import quasar.api.datasource.DatasourceError.ConfigurationError
 import quasar.connector.{ByteStore, ExternalCredentials, MonadResourceErr}
 import quasar.connector.datasource.{LightweightDatasourceModule, Reconfiguration}
-import quasar.plugin.jdbc.{JdbcDiscovery, JdbcDriverConfig, TableType, TransactorConfig}
-import quasar.plugin.jdbc.datasource.JdbcDatasourceModule
+import quasar.lib.jdbc.{JdbcDiscovery, JdbcDriverConfig, TableType, TransactorConfig}
+import quasar.lib.jdbc.datasource.JdbcDatasourceModule
 
 import scala._
 import scala.Predef._

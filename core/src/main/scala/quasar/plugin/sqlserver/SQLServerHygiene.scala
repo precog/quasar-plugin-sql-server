@@ -18,13 +18,14 @@ package quasar.plugin.sqlserver
 
 import scala.Predef._
 
-import quasar.plugin.jdbc.{Hygiene, Hygienic, Ident}
+import quasar.lib.jdbc.{Hygiene, Hygienic, Ident}
 
 import cats.implicits._
 
 object SQLServerHygiene extends Hygiene {
   final case class HygienicIdent(asIdent: Ident) extends Hygienic {
     def forSql = asIdent.asString.split('.').map('[' + _ + ']').toList.intercalate(".")
+    def unsafeString = asIdent.asString
   }
 
   def hygienicIdent(ident: Ident): HygienicIdent =

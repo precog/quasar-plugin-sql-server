@@ -21,7 +21,7 @@ import scala._, Predef._
 import doobie.enum.JdbcType
 
 import quasar.api.ColumnType
-import quasar.plugin.jdbc.VendorType
+import quasar.lib.jdbc.VendorType
 
 object Mapping {
   import JdbcType._
