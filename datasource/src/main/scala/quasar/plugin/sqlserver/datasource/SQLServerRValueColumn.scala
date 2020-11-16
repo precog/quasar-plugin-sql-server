@@ -24,8 +24,8 @@ import java.time._
 import doobie.enum.JdbcType
 
 import quasar.common.data.RValue
-import quasar.plugin.jdbc.VendorType
-import quasar.plugin.jdbc.datasource.{unsupportedColumnTypeMsg, ColumnNum, RValueColumn, SqlType}
+import quasar.lib.jdbc.VendorType
+import quasar.lib.jdbc.datasource.{unsupportedColumnTypeMsg, ColumnNum, RValueColumn, SqlType}
 
 object SQLServerRValueColumn extends RValueColumn {
   import java.sql.Types._

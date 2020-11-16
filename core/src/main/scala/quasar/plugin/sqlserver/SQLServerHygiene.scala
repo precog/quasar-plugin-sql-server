@@ -18,7 +18,7 @@ package quasar.plugin.sqlserver
 
 import scala.Predef._
 
-import quasar.plugin.jdbc.{Hygiene, Hygienic, Ident}
+import quasar.lib.jdbc.{Hygiene, Hygienic, Ident}
 
 import cats.implicits._
 

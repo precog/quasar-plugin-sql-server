@@ -36,8 +36,8 @@ import org.slf4s.Logger
 import quasar.api.destination.DestinationType
 import quasar.connector.MonadResourceErr
 import quasar.connector.destination.{Destination, PushmiPullyu}
-import quasar.plugin.jdbc._
-import quasar.plugin.jdbc.destination._
+import quasar.lib.jdbc._
+import quasar.lib.jdbc.destination._
 
 object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfig] {
 
