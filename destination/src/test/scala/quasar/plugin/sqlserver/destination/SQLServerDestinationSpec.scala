@@ -449,8 +449,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         Column("B", TINYINT),
         Column("C", DATE))
 
-      // bulkCopy.setDestinationTableName cannot handle a number as the first char of a schema name
-      val testSchema = IO("a" ++ Random.alphanumeric.take(5).mkString)
+      val testSchema = IO(Random.alphanumeric.take(6).mkString)
 
       testSchema.flatMap(sch => harnessed(schema = sch) use { case (xa, dest, path, tableName) =>
         for {
@@ -480,8 +479,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
         Column("B", TINYINT),
         Column("C", DATE))
 
-      // bulkCopy.setDestinationTableName cannot handle a number as the first char of a schema name
-      val testSchema = IO("a" ++ Random.alphanumeric.take(5).mkString)
+      val testSchema = IO(Random.alphanumeric.take(6).mkString)
 
       testSchema.flatMap(sch => harnessed(schema = sch) use { case (xa, dest, path, tableName) =>
         for {
