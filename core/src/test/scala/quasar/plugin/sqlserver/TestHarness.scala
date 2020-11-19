@@ -64,10 +64,13 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
       .void
       .unsafeRunSync
 
-  def table(xa: Transactor[IO], schemaInPath: Boolean): Resource[IO, (ResourcePath, String)] = {
+  def table(xa: Transactor[IO], schemaInPath: Boolean, specialString: String = ""): Resource[IO, (ResourcePath, String)] = {
     val setup = Resource.make(
-      IO(s"sqlserver_spec_${Random.alphanumeric.take(6).mkString}"))(
-      name => frag(s"DROP TABLE IF EXISTS $name").update.run.transact(xa).void)
+      IO(s"sqlserver_spec_${Random.alphanumeric.take(6).mkString}" + specialString))(
+      name => {
+        val n = SQLServerHygiene.elideBrackets(name)
+        frag(s"DROP TABLE IF EXISTS $n").update.run.transact(xa).void
+      })
 
     setup map { n =>
       val path = if (schemaInPath)
@@ -81,10 +84,11 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
 
   def tableHarness(
       jdbcUrl: String = TestUrl(Some(TestDb)),
-      schemaInPath: Boolean)
+      schemaInPath: Boolean,
+      specialString: String = "")
       : Resource[IO, (Transactor[IO], ResourcePath, String)] =
     for {
       xa <- TestXa(jdbcUrl)
-      (path, name) <- table(xa, schemaInPath)
+      (path, name) <- table(xa, schemaInPath, specialString)
     } yield (xa, path, name)
 }

@@ -24,10 +24,19 @@ import cats.implicits._
 
 object SQLServerHygiene extends Hygiene {
   final case class HygienicIdent(asIdent: Ident) extends Hygienic {
-    def forSql = asIdent.asString.split('.').map('[' + _ + ']').toList.intercalate(".")
-    def unsafeString = asIdent.asString
+    def forSql: String =
+      asIdent.asString.split('.').map('[' + _ + ']').toList.intercalate(".")
+
+    def unsafeForSqlName: String = elideBrackets(asIdent.asString)
+
+    def forSqlName: String = '[' + unsafeForSqlName + ']'
   }
 
   def hygienicIdent(ident: Ident): HygienicIdent =
     HygienicIdent(ident)
+
+  def elideBrackets(input: String): String =
+    input
+      .replaceAllLiterally("[", "_")
+      .replaceAllLiterally("]", "_")
 }

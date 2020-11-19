@@ -16,7 +16,7 @@
 
 package quasar.plugin.sqlserver.destination
 
-import quasar.plugin.sqlserver.TestHarness
+import quasar.plugin.sqlserver._
 
 import scala.{text => _, Stream => _, _}, Predef._
 
@@ -54,9 +54,10 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
   def harnessed(
       jdbcUrl: String = TestUrl(Some(TestDb)),
       writeMode: WriteMode = WriteMode.Replace,
-      schema: String = "dbo")
+      schema: String = "dbo",
+      specialString: String = "")
       : Resource[IO, (Transactor[IO], SQLServerDestination[IO], ResourcePath, String)] =
-    tableHarness(jdbcUrl, false) map {
+    tableHarness(jdbcUrl, false, specialString) map {
       case (xa, path, name) => {
         (xa, new SQLServerDestination(writeMode, schema, xa, log), path, name)
       }
@@ -342,6 +343,42 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
               .query[String].to[List].transact(xa)
         } yield {
           vals must contain(A, B, C)
+        }
+      }
+    }
+
+    "remove open and close brackets in column name" >> {
+      val input = delim("'foobarbaz'")
+      val cols = NonEmptyList.one(Column("[12]foo", VARCHAR(12)))
+
+      harnessed() use { case (xa, dest, path, tableName) =>
+        for {
+          _ <- input.through(createSink(dest, path, cols)).compile.drain
+
+          vals <-
+            frag(s"select [_12_foo] from $tableName")
+              .query[String].to[List].transact(xa)
+        } yield {
+          vals must contain("foobarbaz")
+        }
+      }
+    }
+
+    "remove open and close brackets in table name" >> {
+      val input = delim("'foobarbaz'")
+      val cols = NonEmptyList.one(Column("value", VARCHAR(12)))
+
+      harnessed(specialString = "[test]") use { case (xa, dest, path, tableName) =>
+        for {
+          _ <- input.through(createSink(dest, path, cols)).compile.drain
+
+          name = SQLServerHygiene.elideBrackets(tableName)
+
+          vals <-
+            frag(s"select [value] from [$name]")
+              .query[String].to[List].transact(xa)
+        } yield {
+          vals must contain("foobarbaz")
         }
       }
     }
