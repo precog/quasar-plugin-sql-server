@@ -89,7 +89,6 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
       : Resource[F, Either[InitError, Destination[F]]] = {
     val schema = config.schema.getOrElse("dbo")
 
-    // TODO test different schema
     (new SQLServerDestination[F](config.writeMode, schema, transactor, log): Destination[F])
       .asRight[InitError]
       .pure[Resource[F, ?]]

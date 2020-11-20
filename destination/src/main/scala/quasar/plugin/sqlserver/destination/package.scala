@@ -19,7 +19,6 @@ package quasar.plugin.sqlserver
 import scala._, Predef._
 import java.lang.CharSequence
 
-//import quasar.api.Column
 import quasar.connector.render.RenderConfig
 
 import cats.data.NonEmptyList
@@ -104,13 +103,13 @@ package object destination {
   def createColumnSpecs(cols: NonEmptyList[(HI, SQLServerType)]): Fragment =
     Fragments.parentheses(
       cols
-        .map { case (n, t) => Fragment.const(n.forSql) ++ t.asSql }
+        .map { case (n, t) => Fragment.const(n.forSqlName) ++ t.asSql }
         .intercalate(fr","))
 
   def insertColumnSpecs(cols: NonEmptyList[(HI, SQLServerType)]): Fragment =
     Fragments.parentheses(
       cols
-        .map { case (n, _) => Fragment.const(n.forSql) }
+        .map { case (n, _) => Fragment.const(n.forSqlName) }
         .intercalate(fr","))
 
   def insertIntoPrefix(

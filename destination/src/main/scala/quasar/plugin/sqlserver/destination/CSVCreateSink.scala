@@ -61,20 +61,20 @@ private[destination] object CsvCreateSink {
     val obj = jdbc.resourcePathRef(pathWithSchema).get // FIXME
 
     val objFragment: Fragment = obj.fold(
-      t => Fragment.const0(SQLServerHygiene.hygienicIdent(t).forSql),
+      t => Fragment.const0(SQLServerHygiene.hygienicIdent(t).forSqlName),
       { case (d, t) =>
-        Fragment.const0(SQLServerHygiene.hygienicIdent(d).forSql) ++
-        fr0"." ++
-        Fragment.const0(SQLServerHygiene.hygienicIdent(t).forSql)
+        Fragment.const0(SQLServerHygiene.hygienicIdent(d).forSqlName) ++
+          fr0"." ++
+          Fragment.const0(SQLServerHygiene.hygienicIdent(t).forSqlName)
       })
 
     val unsafeTableName: String = obj.fold(
-      t => t.asString,
-      { case (_, t) => t.asString})
+      t => SQLServerHygiene.hygienicIdent(t).unsafeForSqlName,
+      { case (_, t) => SQLServerHygiene.hygienicIdent(t).unsafeForSqlName})
 
     val unsafeTableSchema: Option[String] = obj.fold(
       _ => None,
-      { case (d, _) => Some(d.asString) })
+      { case (d, _) => Some(SQLServerHygiene.hygienicIdent(d).unsafeForSqlName) })
 
     def doLoad(obj: Fragment): Pipe[F, CharSequence, Unit] = in => {
       def insert(prefix: StringBuilder, length: Int): Stream[F, Unit] =
