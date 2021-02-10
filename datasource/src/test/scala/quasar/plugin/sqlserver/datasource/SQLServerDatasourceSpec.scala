@@ -35,7 +35,7 @@ import org.slf4s.Logging
 import quasar.ScalarStages
 import quasar.api.resource.ResourcePath
 import quasar.common.data.RValue
-import quasar.connector.QueryResult
+import quasar.connector.{QueryResult, ResultData}
 import quasar.connector.datasource.LightweightDatasourceModule
 import quasar.lib.jdbc.JdbcDiscovery
 import quasar.qscript.InterpretedRead
@@ -57,7 +57,7 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
 
   def loadRValues(ds: DS, p: ResourcePath): IO[List[RValue]] =
     ds.loadFull(InterpretedRead(p, ScalarStages.Id)).value use {
-      case Some(QueryResult.Parsed(_, data, _)) =>
+      case Some(QueryResult.Parsed(_, ResultData.Continuous(data), _)) =>
         data.asInstanceOf[Stream[IO, RValue]].compile.to(List)
 
       case _ => IO.pure(List[RValue]())
