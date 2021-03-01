@@ -29,10 +29,11 @@ import quasar.lib.jdbc._
 import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
 import cats.data.NonEmptyList
-import cats.effect.Effect
+import cats.effect.{Effect, LiftIO}
 import cats.implicits._
 
-import doobie.{Fragment, Transactor}
+import doobie.{Fragment, Transactor, ConnectionIO}
+import doobie.free.connection.{commit, rollback}
 import doobie.implicits._
 
 import fs2.{Pipe, Stream}
@@ -66,7 +67,14 @@ private[destination] abstract class CsvSinkBuilder[F[_]: Effect: MonadResourceEr
 
       start = writeMode match {
         case QWriteMode.Replace =>
-          startLoad(logHandler)(jwriteMode, objFragment, unsafeName, unsafeSchema, hygienicColumns, idColumn).transact(xa)
+          (startLoad(logHandler)(
+            jwriteMode,
+            objFragment,
+            unsafeName,
+            unsafeSchema,
+            hygienicColumns,
+            idColumn) >> commit)
+            .transact(xa)
         case QWriteMode.Append =>
           ().pure[F]
       }
@@ -74,14 +82,19 @@ private[destination] abstract class CsvSinkBuilder[F[_]: Effect: MonadResourceEr
       logStart = trace(logger)("Starting load")
       logEnd = trace(logger)("Finished load")
 
-      handled = events.evalTap(logEvents).through(handleEvents(objFragment, unsafeName)).unNone
+      translated = events.evalTap(logEvents).translate(toConnectionIO)
+      events0 = translated.through(handleEvents(objFragment, unsafeName)).unNone
+      rollback0 = Stream.eval(rollback).drain
+      handled = (events0 ++ rollback0).transact(xa)
     } yield Stream.eval_(logStart) ++ Stream.eval_(start) ++ handled ++ Stream.eval_(logEnd)
   }
+
+  protected val toConnectionIO = Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
 
   def logEvents(events: Event[_]): F[Unit]
 
   def handleEvents[A](objFragment: Fragment, unsafeName: String)
-      : Pipe[F, Event[OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]]
+      : Pipe[ConnectionIO, Event[OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]]
 
   def trace(logger: Logger)(msg: => String): F[Unit] =
     Effect[F].delay(logger.trace(msg))

@@ -37,6 +37,7 @@ import org.slf4s.Logging
 
 import quasar.api.Column
 import quasar.api.resource._
+import quasar.connector.destination.ResultSink
 import quasar.lib.jdbc.destination.WriteMode
 
 object SQLServerDestinationSpec extends TestHarness with Logging {
@@ -48,8 +49,10 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       dest: SQLServerDestination[IO],
       path: ResourcePath,
       cols: NonEmptyList[Column[SQLServerType]])
-      : Pipe[IO, CharSequence, Unit] =
-    dest.createSink(path, cols)._2
+      : Pipe[IO, CharSequence, Unit] = {
+    val mbSink = dest.sinks.toList.collectFirst { case ResultSink.CreateSink(f) => f }
+    mbSink.get.apply(path, cols)._2
+  }
 
   def harnessed(
       jdbcUrl: String = TestUrl(Some(TestDb)),

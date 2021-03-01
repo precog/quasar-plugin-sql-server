@@ -18,15 +18,19 @@ package quasar.plugin.sqlserver.destination
 
 import slamdata.Predef._
 
+import quasar.plugin.sqlserver._
+
 import quasar.api.push.OffsetKey
 import quasar.connector.destination.ResultSink.UpsertSink
 import quasar.connector.render.RenderConfig
-import quasar.connector.{DataEvent, MonadResourceErr}
+import quasar.connector.{DataEvent, IdBatch, MonadResourceErr}
+import quasar.lib.jdbc._
 import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
 import java.lang.CharSequence
 
 import cats.effect.Effect
+import cats.data.NonEmptyVector
 import cats.implicits._
 
 import doobie._
@@ -65,19 +69,49 @@ private[destination] object CsvUpsertSink {
 
       val hyColumns = hygienicColumns(args.columns)
 
-      def logEvents(event: DataEvent[CharSequence, _]): F[Unit] =
-        ().pure[F]
+      def logEvents(event: DataEvent[CharSequence, _]): F[Unit] = event match {
+        case DataEvent.Create(chunk) =>
+          trace(logger)(s"Loading chunk with size: ${chunk.size}")
+        case DataEvent.Delete(idBatch) =>
+          trace(logger)(s"Deleting ${idBatch.size} records")
+        case DataEvent.Commit(_) =>
+          trace(logger)(s"Commit")
+      }
 
       def handleEvents[A](obj: Fragment, unsafeName: String)
-        : Pipe[F, DataEvent[CharSequence, OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]] = _ evalMap {
+        : Pipe[ConnectionIO, DataEvent[CharSequence, OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]] = _ evalMap {
+
         case DataEvent.Create(chunk) =>
           insertChunk(logHandler)(obj, hyColumns, chunk)
-            .transact(xa)
             .as(none[OffsetKey.Actual[A]])
+
+        case DataEvent.Delete(ids) if ids.size < 1 =>
+          none[OffsetKey.Actual[A]].pure[ConnectionIO]
+
         case DataEvent.Delete(ids) =>
-          none[OffsetKey.Actual[A]].pure[F]
+          val columnName = SQLServerHygiene.hygienicIdent(Ident(args.idColumn.name))
+
+          val preamble: Fragment =
+            fr"DELETE FROM" ++ obj ++ fr" WHERE" ++ Fragment.const(columnName.forSqlName)
+
+          val deleteFragment: Fragment = ids match {
+            case IdBatch.Strings(values, size) =>
+              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
+            case IdBatch.Longs(values, size) =>
+              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
+            case IdBatch.Doubles(values, size) =>
+              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
+            case IdBatch.BigDecimals(values, size) =>
+              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
+          }
+
+          deleteFragment
+            .updateWithLogHandler(logHandler)
+            .run
+            .as(none[OffsetKey.Actual[A]])
+
         case DataEvent.Commit(offset) =>
-          commit.as(offset).map(_.some).transact(xa)
+          commit.as(offset).map(_.some)
       }
     }
   }

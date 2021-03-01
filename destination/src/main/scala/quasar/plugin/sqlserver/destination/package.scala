@@ -145,7 +145,6 @@ package object destination {
         statement.addBatch(sql.toString)
         prefix.setLength(length)
       }
-
       statement.executeBatch()
     }
 
@@ -196,6 +195,9 @@ package object destination {
   def hygienicColumns[F[_]: Functor, A](cols: F[Column[A]]): F[(HI, A)] = cols map { c =>
     (SQLServerHygiene.hygienicIdent(Ident(c.name)), c.tpe)
   }
+
+  def indexName(unsafeName: String): String =
+    s"precog_id_idx_$unsafeName"
 
   def createIndex(log: LogHandler)(obj: Fragment, unsafeName: String, column: Fragment): ConnectionIO[Int] = {
     val strName = s"precog_id_idx_$unsafeName"

@@ -16,9 +16,6 @@
 
 package quasar.plugin.sqlserver.destination
 
-import quasar.api.Column
-import quasar.api.resource.ResourcePath
-
 import scala._, Predef._
 
 import cats.data.NonEmptyList

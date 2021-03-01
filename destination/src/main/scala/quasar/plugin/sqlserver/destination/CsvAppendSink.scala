@@ -75,13 +75,12 @@ private[destination] object CsvAppendSink {
         }
 
       def handleEvents[A](obj: Fragment, unsafeName: String)
-        : Pipe[F, AppendEvent[CharSequence, OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]] = _ evalMap {
+        : Pipe[ConnectionIO, AppendEvent[CharSequence, OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]] = _ evalMap {
         case DataEvent.Create(chunk) =>
           insertChunk(logHandler)(obj, hyColumns, chunk)
-            .transact(xa)
             .as(none[OffsetKey.Actual[A]])
         case DataEvent.Commit(offset) =>
-          commit.as(offset).map(_.some).transact(xa)
+          commit.as(offset).map(_.some)
       }
     }
   }

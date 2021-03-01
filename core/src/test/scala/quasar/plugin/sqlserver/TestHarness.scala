@@ -44,10 +44,12 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
 
   val TestDb: String = "precogtest"
 
+  val Password = "<YourStrong@Passw0rd>"
+
   val frag = Fragment.const0(_, None)
 
   def TestUrl(db: Option[String]): String =
-    s"jdbc:sqlserver://localhost:1433${db.map(";database=" + _).getOrElse("")};user=SA;password=<YourStrong@Passw0rd>"
+    s"jdbc:sqlserver://localhost:1433${db.map(";database=" + _).getOrElse("")};user=SA;password=$Password"
 
   def TestXa(jdbcUrl: String): Resource[IO, Transactor[IO]] =
     Resource.make(IO(Executors.newSingleThreadExecutor()))(p => IO(p.shutdown)) map { ex =>
@@ -61,6 +63,7 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
     TestXa(TestUrl(None))
       .use((frag(s"IF DB_ID (N'$TestDb') IS NOT NULL DROP DATABASE $TestDb").update.run >>
         frag(s"CREATE DATABASE $TestDb").update.run).transact(_))
+      .attempt
       .void
       .unsafeRunSync
 
