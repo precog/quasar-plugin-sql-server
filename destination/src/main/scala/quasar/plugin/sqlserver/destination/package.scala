@@ -19,8 +19,15 @@ package quasar.plugin.sqlserver
 import scala._, Predef._
 import java.lang.CharSequence
 
+import quasar.api.Column
+import quasar.api.resource.{ResourceName, ResourcePath}
+import quasar.connector.{MonadResourceErr, ResourceError}
 import quasar.connector.render.RenderConfig
+import quasar.lib.jdbc
+import quasar.lib.jdbc.Ident
+import quasar.lib.jdbc.destination.WriteMode
 
+import cats.{Applicative, Functor}
 import cats.data.NonEmptyList
 import cats.implicits._
 
@@ -32,12 +39,8 @@ import fs2.Chunk
 package object destination {
   val NullSentinel = ""
 
-  val SQLServerCsvConfig: RenderConfig.Csv =
-    RenderConfig.Csv(
-      includeHeader = false,
-      nullSentinel = Some(NullSentinel),
-      includeBom = false,
-      booleanFormat = if (_) "1" else "0")
+  def renderConfig(cols: NonEmptyList[Column[SQLServerType]]): RenderConfig[CharSequence] =
+    RenderConfig.Separated(",", SQLServerColumnRender(cols))
 
   def ifExists(logHandler: LogHandler)(
       unsafeTable: String,
@@ -147,5 +150,61 @@ package object destination {
     }
 
     HC.createStatement(batch).void
+  }
+
+  def pathFragment[F[_]: Applicative: MonadResourceErr](scheme: String, path: ResourcePath)
+      : F[(Fragment, String, Option[String])] = {
+    val actualPath = path./:(ResourceName(scheme))
+    val objF = jdbc.resourcePathRef(actualPath) match {
+      case None => MonadResourceErr[F].raiseError(ResourceError.notAResource(actualPath))
+      case Some(obj) => obj.pure[F]
+    }
+    objF map {
+      case Left(t) =>
+        val hy = SQLServerHygiene.hygienicIdent(t)
+        (Fragment.const0(hy.forSqlName), hy.unsafeForSqlName, None)
+      case Right((d, t)) =>
+        val hyD = SQLServerHygiene.hygienicIdent(d)
+        val hyT = SQLServerHygiene.hygienicIdent(t)
+        (Fragment.const0(hyD.forSqlName) ++ fr0"." ++ Fragment.const0(hyT.forSqlName),
+          hyT.unsafeForSqlName,
+          hyD.unsafeForSqlName.some)
+    }
+  }
+
+  def startLoad(logHandler: LogHandler)(
+    writeMode: WriteMode,
+    obj: Fragment,
+    unsafeName: String,
+    unsafeSchema: Option[String],
+    columns: NonEmptyList[(HI, SQLServerType)],
+    idColumn: Option[Column[_]])
+      : ConnectionIO[Unit] = {
+    val prepareTable = writeMode match {
+      case WriteMode.Create => createTable(logHandler)(obj, columns)
+      case WriteMode.Replace => replaceTable(logHandler)(obj, columns)
+      case WriteMode.Truncate => truncateTable(logHandler)(obj, unsafeName, unsafeSchema, columns)
+      case WriteMode.Append => appendToTable(logHandler)(obj, unsafeName, unsafeSchema, columns)
+    }
+    val mbCreateIndex = idColumn traverse_ { col =>
+      val colFragment = Fragments.parentheses(Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName))
+      createIndex(logHandler)(obj, unsafeName, colFragment)
+    }
+    prepareTable >> mbCreateIndex
+  }
+
+  def hygienicColumns[F[_]: Functor, A](cols: F[Column[A]]): F[(HI, A)] = cols map { c =>
+    (SQLServerHygiene.hygienicIdent(Ident(c.name)), c.tpe)
+  }
+
+  def createIndex(log: LogHandler)(obj: Fragment, unsafeName: String, column: Fragment): ConnectionIO[Int] = {
+    val strName = s"precog_id_idx_$unsafeName"
+    val idxName = Fragment.const(SQLServerHygiene.hygienicIdent(Ident(strName)).forSqlName)
+    val doCreate = fr"CREATE INDEX" ++ idxName ++ fr"ON" ++ obj ++ column
+    val fragment = fr"IF NOT EXISTS(SELECT * FROM sys.indexes WHERE name = '" ++
+      Fragment.const0(strName) ++ fr0"' AND object_id = OBJECT_ID('" ++ Fragment.const0(unsafeName) ++
+      fr"'))" ++ doCreate
+
+    fragment.updateWithLogHandler(log).run
   }
 }

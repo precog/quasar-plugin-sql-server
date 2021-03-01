@@ -16,10 +16,9 @@
 
 package quasar.plugin.sqlserver.destination
 
-import quasar.plugin.sqlserver._
-
 import quasar.api.Column
-import quasar.api.resource.{ResourceName, ResourcePath}
+import quasar.api.resource.ResourcePath
+import quasar.connector.MonadResourceErr
 import quasar.connector.render.RenderConfig
 
 import scala._, Predef._
@@ -27,7 +26,6 @@ import java.lang.CharSequence
 
 import cats.data.NonEmptyList
 import cats.effect.ConcurrentEffect
-import cats.implicits._
 
 import doobie._
 import doobie.implicits._
@@ -36,12 +34,11 @@ import fs2.{Pipe, Stream}
 
 import org.slf4s.Logger
 
-import quasar.lib.jdbc
-import quasar.lib.jdbc.{Ident, Slf4sLogHandler}
+import quasar.lib.jdbc.Slf4sLogHandler
 import quasar.lib.jdbc.destination.WriteMode
 
 private[destination] object CsvCreateSink {
-  def apply[F[_]: ConcurrentEffect](
+  def apply[F[_]: ConcurrentEffect: MonadResourceErr](
       writeMode: WriteMode,
       xa: Transactor[F],
       logger: Logger,
@@ -52,59 +49,11 @@ private[destination] object CsvCreateSink {
 
     val logHandler = Slf4sLogHandler(logger)
 
-    val renderConfig = RenderConfig.Separated(",", SQLServerColumnRender(columns))
+    val hyCols = hygienicColumns(columns)
 
-    val hygienicColumns: NonEmptyList[(HI, SQLServerType)] =
-      columns.map(c => (SQLServerHygiene.hygienicIdent(Ident(c.name)), c.tpe))
-
-    val pathWithSchema = path./:(ResourceName(schema))
-    val obj = jdbc.resourcePathRef(pathWithSchema).get // FIXME
-
-    val objFragment: Fragment = obj.fold(
-      t => Fragment.const0(SQLServerHygiene.hygienicIdent(t).forSqlName),
-      { case (d, t) =>
-        Fragment.const0(SQLServerHygiene.hygienicIdent(d).forSqlName) ++
-          fr0"." ++
-          Fragment.const0(SQLServerHygiene.hygienicIdent(t).forSqlName)
-      })
-
-    val unsafeTableName: String = obj.fold(
-      t => SQLServerHygiene.hygienicIdent(t).unsafeForSqlName,
-      { case (_, t) => SQLServerHygiene.hygienicIdent(t).unsafeForSqlName})
-
-    val unsafeTableSchema: Option[String] = obj.fold(
-      _ => None,
-      { case (d, _) => Some(SQLServerHygiene.hygienicIdent(d).unsafeForSqlName) })
-
-    def doLoad(obj: Fragment): Pipe[F, CharSequence, Unit] = in => {
-      def insert(prefix: StringBuilder, length: Int): Stream[F, Unit] =
-        Stream.eval(startLoad.transact(xa)) ++
-          in.chunks.evalMap(insertChunk(logHandler)(obj, hygienicColumns, _).transact(xa))
-
-      val (prefix, length) = insertIntoPrefix(logHandler)(obj, hygienicColumns)
-
-      insert(prefix, length)
-    }
-
-    def startLoad: ConnectionIO[Unit] =
-      for {
-        _ <- writeMode match {
-          case WriteMode.Create =>
-            createTable(logHandler)(objFragment, hygienicColumns)
-
-          case WriteMode.Replace =>
-            replaceTable(logHandler)(objFragment, hygienicColumns)
-
-          case WriteMode.Truncate =>
-            truncateTable(logHandler)(objFragment, unsafeTableName, unsafeTableSchema, hygienicColumns)
-
-          case WriteMode.Append =>
-            appendToTable(logHandler)(objFragment, unsafeTableName, unsafeTableSchema, hygienicColumns)
-        }
-      } yield ()
-
-    (renderConfig, in => Stream.eval(objFragment.pure[F]) flatMap {
-      doLoad(_)(in)
+    (renderConfig(columns), in => Stream.eval(pathFragment[F](schema, path)) flatMap { case (obj, uName, uSchema) =>
+      Stream.eval(startLoad(logHandler)(writeMode, obj, uName, uSchema, hyCols, None).transact(xa)) ++
+        in.chunks.evalMap(insertChunk(logHandler)(obj, hyCols, _).transact(xa))
     })
   }
 }
