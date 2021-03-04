@@ -16,9 +16,6 @@
 
 package quasar.plugin.sqlserver.destination
 
-import quasar.api.Column
-import quasar.api.resource.ResourcePath
-
 import scala._, Predef._
 
 import cats.data.NonEmptyList
@@ -50,10 +47,10 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
   val destinationType = SQLServerDestinationModule.destinationType
 
-  def createSink(path: ResourcePath, columns: NonEmptyList[Column[SQLServerType]]) =
-    CsvCreateSink[F](writeMode, xa, logger, schema)(path, columns)
-
-  val sinks = NonEmptyList.one(ResultSink.create(createSink))
+  val sinks = NonEmptyList.of(
+    ResultSink.create(CsvCreateSink(writeMode, xa, logger, schema)),
+    ResultSink.upsert(SinkBuilder.upsert(xa, writeMode, schema, logger)),
+    ResultSink.append(SinkBuilder.append(xa, writeMode, schema, logger)))
 
   val typeIdOrdinal: Prism[Int, TypeId] =
     Prism(SQLServerDestination.OrdinalMap.get(_))(_.ordinal)

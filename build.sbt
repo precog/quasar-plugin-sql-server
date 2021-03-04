@@ -71,8 +71,9 @@ lazy val destination = project
     quasarPluginDatasourceFqcn := Some("quasar.plugin.sqlserver.destination.SQLServerDestinationModule$"),
 
     quasarPluginDependencies ++= Seq(
-      "com.precog"              %% "quasar-lib-jdbc" % quasarPluginJdbcVersion.value,
-      "com.microsoft.sqlserver" %  "mssql-jdbc"      % "8.4.1.jre8"
+      "com.precog"              %% "quasar-lib-jdbc"   % quasarPluginJdbcVersion.value,
+      "com.microsoft.sqlserver" %  "mssql-jdbc"        % "8.4.1.jre8",
+      "com.precog"              %% "quasar-foundation" % quasarVersion.value % "test->test" classifier "tests"
     ))
   .enablePlugins(QuasarPlugin)
   .evictToLocal("QUASAR_PATH", "connector", true)

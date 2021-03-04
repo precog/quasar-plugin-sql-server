@@ -66,9 +66,15 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
               _)(cc)
           .jdbcUrl
 
-      jdbcUrl <-
-        Either.catchNonFatal(URI.create(connectionString)).leftMap(_ => NonEmptyList.one(
-          "Malformed JDBC connection string, ensure any restricted characters are properly escaped"))
+      jdbcUrl <- {
+        val prefix = "jdbc:sqlserver://"
+        if (connectionString.take(prefix.length) === prefix) {
+          Right(new URI("jdbc", connectionString.drop(5), null))
+        }
+        else {
+          Left(NonEmptyList.one("Malformed JDBC connection string, ensure that the prefix is 'jdbc:'"))
+        }
+      }
 
       txConfig =
         TransactorConfig
