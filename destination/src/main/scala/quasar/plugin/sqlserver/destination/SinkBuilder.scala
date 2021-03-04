@@ -18,17 +18,26 @@ package quasar.plugin.sqlserver.destination
 
 import slamdata.Predef._
 
+import quasar.plugin.sqlserver._
+
 import quasar.api.push.OffsetKey
-import quasar.connector.{AppendEvent, DataEvent, MonadResourceErr}
-import quasar.connector.destination.ResultSink, ResultSink.{UpsertSink, AppendSink}
+import quasar.api.Column
+import quasar.api.resource.ResourcePath
+import quasar.connector.{AppendEvent, DataEvent, IdBatch, MonadResourceErr}
+import quasar.connector.destination.{WriteMode => QWriteMode, ResultSink}, ResultSink.{UpsertSink, AppendSink}
 import quasar.connector.render.RenderConfig
+import quasar.lib.jdbc._
 import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
-import cats.effect.Effect
+import cats.data.{NonEmptyList, NonEmptyVector}
+import cats.effect.{Effect, LiftIO}
+import cats.implicits._
 
-import doobie.Transactor
+import doobie._
+import doobie.free.connection.{commit, rollback}
+import doobie.implicits._
 
-import fs2.Pipe
+import fs2.{Pipe, Stream}
 
 import java.lang.CharSequence
 
@@ -47,7 +56,7 @@ object SinkBuilder {
       logger: Logger)(
       args: UpsertSink.Args[SQLServerType])
       : (RenderConfig[CharSequence], ∀[Consume[F, DataEvent[CharSequence, *], *]]) = {
-    val consume = ∀[Consume[F, DataEvent[CharSequence, *], *]](UpsertPipe(
+    val consume = ∀[Consume[F, DataEvent[CharSequence, *], *]](upsertPipe(
       xa,
       args.writeMode,
       writeMode,
@@ -66,7 +75,7 @@ object SinkBuilder {
       logger: Logger)(
       args: AppendSink.Args[SQLServerType])
       : (RenderConfig[CharSequence], ∀[Consume[F, AppendEvent[CharSequence, *], *]]) = {
-    val consume = ∀[Consume[F, AppendEvent[CharSequence, *], *]](UpsertPipe(
+    val consume = ∀[Consume[F, AppendEvent[CharSequence, *], *]](upsertPipe(
       xa,
       args.writeMode,
       writeMode,
@@ -76,5 +85,108 @@ object SinkBuilder {
       args.columns,
       logger))
     (renderConfig(args.columns), consume)
+  }
+
+
+  private def upsertPipe[F[_]: Effect: MonadResourceErr, A](
+      xa: Transactor[F],
+      writeMode: QWriteMode,
+      jwriteMode: JWriteMode,
+      schema: String,
+      path: ResourcePath,
+      idColumn: Option[Column[SQLServerType]],
+      inputColumns: NonEmptyList[Column[SQLServerType]],
+      logger: Logger)
+      : Pipe[F, DataEvent[CharSequence, OffsetKey.Actual[A]], OffsetKey.Actual[A]] = { events =>
+
+    val logHandler = Slf4sLogHandler(logger)
+
+    val toConnectionIO = Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
+
+    val hyColumns = hygienicColumns(inputColumns)
+
+    def logEvents(event: DataEvent[CharSequence, _]): F[Unit] = event match {
+      case DataEvent.Create(chunk) =>
+        trace(logger)(s"Loading chunk with size: ${chunk.size}")
+      case DataEvent.Delete(idBatch) =>
+        trace(logger)(s"Deleting ${idBatch.size} records")
+      case DataEvent.Commit(_) =>
+        trace(logger)(s"Commit")
+    }
+
+    def handleEvents(obj: Fragment, unsafeName: String)
+      : Pipe[ConnectionIO, DataEvent[CharSequence, OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]] = _ evalMap {
+
+      case DataEvent.Create(chunk) =>
+        insertChunk(logHandler)(obj, hyColumns, chunk)
+          .as(none[OffsetKey.Actual[A]])
+
+      case DataEvent.Delete(ids) if ids.size < 1 =>
+        none[OffsetKey.Actual[A]].pure[ConnectionIO]
+
+      case DataEvent.Delete(ids) => idColumn match {
+        case None =>
+          none[OffsetKey.Actual[A]].pure[ConnectionIO]
+        case Some(id) =>
+          val columnName = SQLServerHygiene.hygienicIdent(Ident(id.name))
+
+          val preamble: Fragment =
+            fr"DELETE FROM" ++ obj ++ fr" WHERE" ++ Fragment.const(columnName.forSqlName)
+
+          val deleteFragment: Fragment = ids match {
+            case IdBatch.Strings(values, size) =>
+              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
+            case IdBatch.Longs(values, size) =>
+              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
+            case IdBatch.Doubles(values, size) =>
+              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
+            case IdBatch.BigDecimals(values, size) =>
+              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
+          }
+
+          deleteFragment
+            .updateWithLogHandler(logHandler)
+            .run
+            .as(none[OffsetKey.Actual[A]])
+      }
+
+      case DataEvent.Commit(offset) =>
+        commit.as(offset).map(_.some)
+    }
+
+    def trace(logger: Logger)(msg: => String): F[Unit] =
+      Effect[F].delay(logger.trace(msg))
+
+    Stream.force {
+      for {
+        (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, path)
+
+        hygienicColumns = inputColumns.map { c =>
+          (SQLServerHygiene.hygienicIdent(Ident(c.name)), c.tpe)
+        }
+
+        start = writeMode match {
+          case QWriteMode.Replace =>
+            (startLoad(logHandler)(
+              jwriteMode,
+              objFragment,
+              unsafeName,
+              unsafeSchema,
+              hygienicColumns,
+              idColumn) >> commit)
+              .transact(xa)
+          case QWriteMode.Append =>
+            ().pure[F]
+        }
+
+        logStart = trace(logger)("Starting load")
+        logEnd = trace(logger)("Finished load")
+
+        translated = events.evalTap(logEvents).translate(toConnectionIO)
+        events0 = translated.through(handleEvents(objFragment, unsafeName)).unNone
+        rollback0 = Stream.eval(rollback).drain
+        handled = (events0 ++ rollback0).transact(xa)
+      } yield Stream.eval_(logStart) ++ Stream.eval_(start) ++ handled ++ Stream.eval_(logEnd)
+    }
   }
 }
