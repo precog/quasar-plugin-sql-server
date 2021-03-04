@@ -200,7 +200,7 @@ package object destination {
     s"precog_id_idx_$unsafeName"
 
   def createIndex(log: LogHandler)(obj: Fragment, unsafeName: String, column: Fragment): ConnectionIO[Int] = {
-    val strName = s"precog_id_idx_$unsafeName"
+    val strName = indexName(unsafeName)
     val idxName = Fragment.const(SQLServerHygiene.hygienicIdent(Ident(strName)).forSqlName)
     val doCreate = fr"CREATE INDEX" ++ idxName ++ fr"ON" ++ obj ++ column
     val fragment = fr"IF NOT EXISTS(SELECT * FROM sys.indexes WHERE name = '" ++
