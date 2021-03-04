@@ -49,8 +49,8 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
   val sinks = NonEmptyList.of(
     ResultSink.create(CsvCreateSink(writeMode, xa, logger, schema)),
-    ResultSink.upsert(CsvUpsertSink(xa, writeMode, schema, logger)),
-    ResultSink.append(CsvAppendSink(xa, writeMode, schema, logger)))
+    ResultSink.upsert(SinkBuilder.upsert(xa, writeMode, schema, logger)),
+    ResultSink.append(SinkBuilder.append(xa, writeMode, schema, logger)))
 
   val typeIdOrdinal: Prism[Int, TypeId] =
     Prism(SQLServerDestination.OrdinalMap.get(_))(_.ordinal)
