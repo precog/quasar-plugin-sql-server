@@ -95,14 +95,14 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       maxConcurrency = cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
       maxLifetime = cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
     } yield {
-      TransactorConfig
+      val tc = TransactorConfig
         .withDefaultTimeouts(
           JdbcDriverConfig.JdbcDriverManagerConfig(
             jdbcUrl,
             Some("com.microsoft.sqlserver.jdbc.SQLServerDriver")),
           connectionMaxConcurrency = maxConcurrency,
           connectionReadOnly = true)
-        .copy(connectionMaxLifetime = maxLifetime)
+      tc.copy(poolConfig = tc.poolConfig.map(_.copy(connectionMaxLifetime = maxLifetime)))
     }
 
   def kind: DatasourceType = DatasourceType("sql-server", 1L)

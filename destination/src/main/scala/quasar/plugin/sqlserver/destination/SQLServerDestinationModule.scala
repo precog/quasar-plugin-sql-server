@@ -76,7 +76,7 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
         }
       }
 
-      txConfig =
+      tc =
         TransactorConfig
           .withDefaultTimeouts(
             JdbcDriverConfig.JdbcDriverManagerConfig(
@@ -84,7 +84,8 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
               Some("com.microsoft.sqlserver.jdbc.SQLServerDriver")),
             connectionMaxConcurrency = maxConcurrency,
             connectionReadOnly = false)
-          .copy(connectionMaxLifetime = maxLifetime)
+      txConfig = 
+        tc.copy(poolConfig = tc.poolConfig.map(_.copy(connectionMaxLifetime = maxLifetime)))
     } yield txConfig
 
   def jdbcDestination[F[_]: ConcurrentEffect: ContextShift: MonadResourceErr: Timer](
