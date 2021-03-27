@@ -82,7 +82,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
   val Mod = SQLServerDestinationModule
 
   "seek sinks (upsert and append)" should {
-    val XStringCol = Column("x", SQLServerType.NVARCHAR(255))
+    val XStringCol = Column("x", SQLServerType.TEXT)
     "write after commit" >> Consumer.appendAndUpsert[String :: String :: HNil] { (toOpt, consumer) =>
       val events =
         Stream(
@@ -630,7 +630,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
 
   object columnType extends Poly1 {
     import SQLServerType._
-    implicit val stringCase: Case.Aux[String, SQLServerType] = at(_ => NVARCHAR(255))
+    implicit val stringCase: Case.Aux[String, SQLServerType] = at(_ => TEXT)
     implicit val intCase: Case.Aux[Int, SQLServerType] = at(_ => INT)
   }
 
