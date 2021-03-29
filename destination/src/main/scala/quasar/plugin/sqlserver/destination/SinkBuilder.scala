@@ -20,8 +20,8 @@ import slamdata.Predef._
 
 import quasar.plugin.sqlserver._
 
+import quasar.api.{Column, ColumnType}
 import quasar.api.push.OffsetKey
-import quasar.api.Column
 import quasar.api.resource.ResourcePath
 import quasar.connector.{AppendEvent, DataEvent, IdBatch, MonadResourceErr}
 import quasar.connector.destination.{WriteMode => QWriteMode, ResultSink}, ResultSink.{UpsertSink, AppendSink}
@@ -31,7 +31,7 @@ import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
 import cats.data.{NonEmptyList, NonEmptyVector}
 import cats.effect.{Effect, LiftIO}
-import cats.implicits._
+import cats.syntax.all._
 
 import doobie._
 import doobie.free.connection.{commit, rollback}
@@ -87,7 +87,6 @@ object SinkBuilder {
     (renderConfig(args.columns), consume)
   }
 
-
   private def upsertPipe[F[_]: Effect: MonadResourceErr, A](
       xa: Transactor[F],
       writeMode: QWriteMode,
@@ -100,10 +99,14 @@ object SinkBuilder {
       : Pipe[F, DataEvent[CharSequence, OffsetKey.Actual[A]], OffsetKey.Actual[A]] = { events =>
 
     val logHandler = Slf4sLogHandler(logger)
-
     val toConnectionIO = Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
 
-    val hyColumns = hygienicColumns(inputColumns)
+    val (actualId, actualColumns) = idColumn match {
+      case Some(c) => ensureIndexableIdColumn(c, inputColumns).leftMap(Some(_))
+      case None => (None, inputColumns)
+    }
+
+    val hyColumns = hygienicColumns(actualColumns)
 
     def logEvents(event: DataEvent[CharSequence, _]): F[Unit] = event match {
       case DataEvent.Create(chunk) =>
@@ -124,9 +127,10 @@ object SinkBuilder {
       case DataEvent.Delete(ids) if ids.size < 1 =>
         none[OffsetKey.Actual[A]].pure[ConnectionIO]
 
-      case DataEvent.Delete(ids) => idColumn match {
+      case DataEvent.Delete(ids) => actualId match {
         case None =>
           none[OffsetKey.Actual[A]].pure[ConnectionIO]
+
         case Some(id) =>
           val columnName = SQLServerHygiene.hygienicIdent(Ident(id.name))
 
@@ -161,10 +165,6 @@ object SinkBuilder {
       for {
         (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, path)
 
-        hygienicColumns = inputColumns.map { c =>
-          (SQLServerHygiene.hygienicIdent(Ident(c.name)), c.tpe)
-        }
-
         start = writeMode match {
           case QWriteMode.Replace =>
             (startLoad(logHandler)(
@@ -172,8 +172,8 @@ object SinkBuilder {
               objFragment,
               unsafeName,
               unsafeSchema,
-              hygienicColumns,
-              idColumn) >> commit)
+              hyColumns,
+              actualId) >> commit)
               .transact(xa)
           case QWriteMode.Append =>
             ().pure[F]
@@ -189,4 +189,20 @@ object SinkBuilder {
       } yield Stream.eval_(logStart) ++ Stream.eval_(start) ++ handled ++ Stream.eval_(logEnd)
     }
   }
+
+  /** Ensures the provided identity column is suitable for indexing by SQL Server,
+    * adjusting the type to one that is compatible and indexable if not.
+    */
+  private def ensureIndexableIdColumn(
+      id: Column[SQLServerType],
+      columns: NonEmptyList[Column[SQLServerType]])
+      : (Column[SQLServerType], NonEmptyList[Column[SQLServerType]]) =
+    Typer.inferScalar(id.tpe)
+      .collect {
+        case t @ ColumnType.String if id.tpe.some === Typer.preferred(t) =>
+          val indexableId = id.as(SQLServerType.VARCHAR(MaxIndexableVarchars))
+          val cols = columns.map(c => if (c === id) indexableId else c)
+          (indexableId, cols)
+      }
+      .getOrElse((id, columns))
 }

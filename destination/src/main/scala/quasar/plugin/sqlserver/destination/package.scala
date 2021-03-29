@@ -37,7 +37,12 @@ import doobie.implicits._
 import fs2.Chunk
 
 package object destination {
-  val NullSentinel = ""
+  /** The maximum width, in characters, of an indexable VARCHAR column such that SQL server
+    * will allow an index to be created for it.
+    */
+  val MaxIndexableVarchars: Int = 900
+
+  val NullSentinel: String = ""
 
   def renderConfig(cols: NonEmptyList[Column[SQLServerType]]): RenderConfig[CharSequence] =
     RenderConfig.Separated(",", SQLServerColumnRender(cols))
