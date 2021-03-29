@@ -27,7 +27,7 @@ import quasar.api.resource.{ResourceName, ResourcePath}
 import quasar.connector._
 import quasar.connector.destination.{WriteMode => QWriteMode, _}
 import quasar.contrib.scalaz.MonadError_
-import quasar.lib.jdbc.Ident
+import quasar.lib.jdbc.{ColumnName, Ident, JdbcDiscovery, TableName}
 
 import argonaut._, Argonaut._, ArgonautScalaz._
 
@@ -315,6 +315,36 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
         indexCount must_=== 2
       }
     }
+
+    "ensures id column with 'default' unindexable type converted to indexable" >> Consumer.idOnly[String :: String :: HNil] { (toOpt, consumer) =>
+
+      import JdbcDiscovery.ColumnMeta
+
+      val discovery = JdbcDiscovery(None)
+
+      val events =
+        Stream(
+          UpsertEvent.Create(List(
+            ("x" ->> "foo") :: ("y" ->> "bar") :: HNil,
+            ("x" ->> "baz") :: ("y" ->> "qux") :: HNil)),
+          UpsertEvent.Commit("commit1"))
+
+      for {
+        tblA <- freshTableName
+        _ <- consumer(tblA, toOpt(XStringCol), QWriteMode.Replace, events)
+
+        indexedColumn =
+          discovery.tableColumns(TableName(tblA), None)
+            .filter(_.name === ColumnName("x"))
+            .compile
+            .lastOrError
+
+        columnMeta <- runDb[ColumnMeta](indexedColumn)
+      } yield {
+        columnMeta.vendorType must_=== "varchar"
+      }
+    }
+
     "doesn't create indices if there is no ids" >>*
       Consumer.append[String :: String :: HNil]().use { consumer =>
         val events =
@@ -627,9 +657,10 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
     case class LongIds(ids: List[Long]) extends Ids
   }
 
-
   object columnType extends Poly1 {
     import SQLServerType._
+    // Set to the 'preferred/default' coercion for 'ColumnType.String'
+    // to test indexability adjustments are applied.
     implicit val stringCase: Case.Aux[String, SQLServerType] = at(_ => TEXT)
     implicit val intCase: Case.Aux[Int, SQLServerType] = at(_ => INT)
   }
