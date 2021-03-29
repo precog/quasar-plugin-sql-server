@@ -31,7 +31,7 @@ import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
 import cats.data.{NonEmptyList, NonEmptyVector}
 import cats.effect.{Effect, LiftIO}
-import cats.implicits._
+import cats.syntax.all._
 
 import doobie._
 import doobie.free.connection.{commit, rollback}
@@ -199,9 +199,9 @@ object SinkBuilder {
       : (Column[SQLServerType], NonEmptyList[Column[SQLServerType]]) =
     Typer.inferScalar(id.tpe)
       .collect {
-        case t @ ColumnType.String if Some(id.tpe) == Typer.preferred(t) =>
+        case t @ ColumnType.String if id.tpe.some === Typer.preferred(t) =>
           val indexableId = id.as(SQLServerType.VARCHAR(MaxIndexableVarchars))
-          val cols = columns.map(c => if (c == id) indexableId else c)
+          val cols = columns.map(c => if (c === id) indexableId else c)
           (indexableId, cols)
       }
       .getOrElse((id, columns))

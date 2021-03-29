@@ -18,6 +18,7 @@ package quasar.plugin.sqlserver.destination
 
 import scala._, Predef._
 
+import cats.Eq
 import cats.data.Ior
 
 import doobie.Fragment
@@ -147,6 +148,9 @@ object SQLServerType {
     val constructor = Constructor.Unary(LengthCharsParam(8000), VARCHAR(_))
   }
 
+  implicit val sqlServerTypeEq: Eq[SQLServerType] =
+    Eq.fromUniversalEquals
+
   ////
 
   private def LengthCharsParam(max: Int): Labeled[Formal[Int]] =
@@ -198,4 +202,7 @@ object SQLServerTypeId {
       TIME,
       TINYINT,
       VARCHAR)
+
+  implicit val sqlServerTypeIdEq: Eq[SQLServerTypeId] =
+    Eq.fromUniversalEquals
 }

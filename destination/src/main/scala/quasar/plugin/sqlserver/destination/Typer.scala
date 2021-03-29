@@ -24,6 +24,7 @@ import quasar.connector.destination.Constructor
 import scala._, Predef._
 
 import cats.data.NonEmptyList
+import cats.syntax.all._
 
 object Typer {
   import Constructor._
@@ -41,7 +42,7 @@ object Typer {
   def inferScalar(tpe: SQLServerType): Option[ColumnType.Scalar] =
     coercions.toList
       .collect {
-        case (k, TypeCoercion.Satisfied(ids)) if ids.exists(_ == tpe.id) => k
+        case (k, TypeCoercion.Satisfied(ids)) if ids.exists(_ === tpe.id) => k
       } match {
         case t :: Nil => Some(t)
         case _ => None
