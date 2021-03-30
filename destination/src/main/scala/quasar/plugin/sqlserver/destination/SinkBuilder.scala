@@ -29,13 +29,15 @@ import quasar.connector.render.RenderConfig
 import quasar.lib.jdbc._
 import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
+import cats.~>
 import cats.data.{NonEmptyList, NonEmptyVector}
 import cats.effect.{Effect, LiftIO}
 import cats.implicits._
 
 import doobie._
-import doobie.free.connection.{commit, rollback}
+import doobie.free.connection.{commit, rollback, setAutoCommit, unit}
 import doobie.implicits._
+import doobie.util.transactor.Strategy
 
 import fs2.{Pipe, Stream}
 
@@ -114,41 +116,15 @@ object SinkBuilder {
         trace(logger)(s"Commit")
     }
 
-    def handleEvents(obj: Fragment, unsafeName: String)
+    def handleEvents(obj: Fragment)
       : Pipe[ConnectionIO, DataEvent[CharSequence, OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]] = _ evalMap {
 
       case DataEvent.Create(chunk) =>
-        insertChunk(logHandler)(obj, hyColumns, chunk)
-          .as(none[OffsetKey.Actual[A]])
+        insertChunk(logHandler)(obj, hyColumns, chunk) >>
+        commit.as(none[OffsetKey.Actual[A]])
 
-      case DataEvent.Delete(ids) if ids.size < 1 =>
+      case DataEvent.Delete(ids) =>
         none[OffsetKey.Actual[A]].pure[ConnectionIO]
-
-      case DataEvent.Delete(ids) => idColumn match {
-        case None =>
-          none[OffsetKey.Actual[A]].pure[ConnectionIO]
-        case Some(id) =>
-          val columnName = SQLServerHygiene.hygienicIdent(Ident(id.name))
-
-          val preamble: Fragment =
-            fr"DELETE FROM" ++ obj ++ fr" WHERE" ++ Fragment.const(columnName.forSqlName)
-
-          val deleteFragment: Fragment = ids match {
-            case IdBatch.Strings(values, size) =>
-              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
-            case IdBatch.Longs(values, size) =>
-              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
-            case IdBatch.Doubles(values, size) =>
-              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
-            case IdBatch.BigDecimals(values, size) =>
-              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
-          }
-
-          deleteFragment
-            .updateWithLogHandler(logHandler)
-            .run
-            .as(none[OffsetKey.Actual[A]])
-      }
 
       case DataEvent.Commit(offset) =>
         commit.as(offset).map(_.some)
@@ -165,28 +141,59 @@ object SinkBuilder {
           (SQLServerHygiene.hygienicIdent(Ident(c.name)), c.tpe)
         }
 
-        start = writeMode match {
+        tempTable = TempTable.fromName(unsafeName, unsafeSchema)
+
+        columnsObj = createColumnSpecs(hygienicColumns)
+
+        outsideXA = Transactor.strategy.modify(xa, _ =>
+          Strategy(setAutoCommit(true), unit, unit, unit))
+
+        finalXA = Transactor.strategy.modify(xa, _ =>
+          Strategy(
+            setAutoCommit(false),
+            unit,
+            TempTable.dropTempTable(logHandler)(tempTable) >> rollback,
+            commit))
+
+        prepareTempTable =
+          TempTable.dropTempTable(logHandler)(tempTable) >>
+          TempTable.createTempTable(logHandler)(tempTable, columnsObj) >>
+          commit
+
+        putToTempTable =
+          events.evalTap(logEvents).translate(toConnectionIO)
+            .through(handleEvents(tempTable.obj))
+            .unNone
+
+        finalize = writeMode match {
           case QWriteMode.Replace =>
-            (startLoad(logHandler)(
+            TempTable.applyTempTable(logHandler)(
               jwriteMode,
+              tempTable,
               objFragment,
               unsafeName,
               unsafeSchema,
               hygienicColumns,
-              idColumn) >> commit)
-              .transact(xa)
+              idColumn)
           case QWriteMode.Append =>
-            ().pure[F]
+            val mbFilter = idColumn traverse_ { col =>
+              TempTable.filterTempIds(logHandler)(tempTable, objFragment, col)
+            }
+           mbFilter >>
+           TempTable.insertInto(logHandler)(tempTable, objFragment) >>
+           TempTable.dropTempTable(logHandler)(tempTable)
         }
 
         logStart = trace(logger)("Starting load")
         logEnd = trace(logger)("Finished load")
 
-        translated = events.evalTap(logEvents).translate(toConnectionIO)
-        events0 = translated.through(handleEvents(objFragment, unsafeName)).unNone
-        rollback0 = Stream.eval(rollback).drain
-        handled = (events0 ++ rollback0).transact(xa)
-      } yield Stream.eval_(logStart) ++ Stream.eval_(start) ++ handled ++ Stream.eval_(logEnd)
+      } yield {
+        Stream.eval_(logStart) ++
+        Stream.eval_(prepareTempTable.transact(xa)) ++
+        putToTempTable.translate(λ[ConnectionIO ~> F](_.transact(xa))) ++
+        Stream.eval_(finalize.transact(finalXA)) ++
+        Stream.eval_(logEnd)
+      }
     }
   }
 }

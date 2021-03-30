@@ -46,8 +46,10 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
 
   val frag = Fragment.const0(_, None)
 
-  val User = "SA"
-  val Password = "<YourStrong@Passw0rd>"
+  //val User = "SA"
+  //val Password = "<YourStrong@Passw0rd>"
+  val User = "sa"
+  val Password = "1"
 
   def TestUrl(db: Option[String]): String =
     s"jdbc:sqlserver://localhost:1433${db.map(";database=" + _).getOrElse("")};user=$User;password=$Password"
@@ -60,13 +62,13 @@ trait TestHarness extends Specification with CatsIO with BeforeAll {
         Blocker.liftExecutionContext(ExecutionContext.fromExecutorService(ex)))
     }
 
-  def beforeAll(): Unit =
-    TestXa(TestUrl(None))
-      .use((frag(s"IF DB_ID (N'$TestDb') IS NOT NULL DROP DATABASE $TestDb").update.run >>
-        frag(s"CREATE DATABASE $TestDb").update.run).transact(_))
-      .attempt
-      .void
-      .unsafeRunSync
+  def beforeAll(): Unit = ()
+   // TestXa(TestUrl(None))
+   //   .use((frag(s"IF DB_ID (N'$TestDb') IS NOT NULL DROP DATABASE $TestDb").update.run >>
+   //     frag(s"CREATE DATABASE $TestDb").update.run).transact(_))
+   //   .attempt
+   //   .void
+   //   .unsafeRunSync
 
   def table(xa: Transactor[IO], schemaInPath: Boolean, specialString: String = ""): Resource[IO, (ResourcePath, String)] = {
     val setup = Resource.make(

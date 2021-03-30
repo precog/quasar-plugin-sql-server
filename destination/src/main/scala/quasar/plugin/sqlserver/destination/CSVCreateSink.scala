@@ -26,9 +26,12 @@ import java.lang.CharSequence
 
 import cats.data.NonEmptyList
 import cats.effect.ConcurrentEffect
+import cats.implicits._
 
 import doobie._
+import doobie.free.connection.{commit, setAutoCommit, unit, rollback}
 import doobie.implicits._
+import doobie.util.transactor.Strategy
 
 import fs2.{Pipe, Stream}
 
@@ -52,8 +55,35 @@ private[destination] object CsvCreateSink {
     val hyCols = hygienicColumns(columns)
 
     (renderConfig(columns), in => Stream.eval(pathFragment[F](schema, path)) flatMap { case (obj, uName, uSchema) =>
-      Stream.eval(startLoad(logHandler)(writeMode, obj, uName, uSchema, hyCols, None).transact(xa)) ++
-        in.chunks.evalMap(insertChunk(logHandler)(obj, hyCols, _).transact(xa))
+
+      val tempTable = TempTable.fromName(uName, uSchema)
+      val columnsObj = createColumnSpecs(hyCols)
+
+      val outsideXA = Transactor.strategy.modify(xa, _ =>
+          Strategy(setAutoCommit(true), unit, unit, unit))
+
+      val finalXA = Transactor.strategy.modify(xa, _ =>
+          Strategy(
+            setAutoCommit(false),
+            unit,
+            TempTable.dropTempTable(logHandler)(tempTable) >> rollback,
+            commit))
+
+      val prepare =
+        TempTable.dropTempTable(logHandler)(tempTable) >>
+        TempTable.createTempTable(logHandler)(tempTable, columnsObj) >>
+        commit
+
+      val putToTemp =
+        in.chunks.evalMap(insertChunk(logHandler)(tempTable.obj, hyCols, _).transact(outsideXA))
+
+      val rename =
+        TempTable.applyTempTable(logHandler)(writeMode, tempTable, obj, uName, uSchema, hyCols, None) >>
+        TempTable.dropTempTable(logHandler)(tempTable) >>
+        commit
+
+      Stream.eval(prepare.transact(xa)) ++ putToTemp ++ Stream.eval(rename.transact(finalXA))
+
     })
   }
 }

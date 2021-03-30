@@ -157,6 +157,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
         }
     }
 
+    /*
     "upsert delete rows with string typed primary key" >>* {
       Consumer.upsert[String :: String :: HNil]().use { consumer =>
         val events =
@@ -259,7 +260,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
         }
       }
     }
-
+*/
     "creates table and then appends" >> Consumer.appendAndUpsert[String :: String :: HNil] { (toOpt, consumer) =>
       val events1 =
         Stream(

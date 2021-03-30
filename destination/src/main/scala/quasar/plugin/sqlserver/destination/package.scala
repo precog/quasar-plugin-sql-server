@@ -59,13 +59,17 @@ package object destination {
   def replaceTable(logHandler: LogHandler)(
       objFragment: Fragment,
       columns: NonEmptyList[(HI, SQLServerType)])
-      : ConnectionIO[Int] = {
-    val drop = (fr"DROP TABLE IF EXISTS" ++ objFragment)
+      : ConnectionIO[Int] =
+    dropTableIfExists(logHandler)(objFragment) >> createTable(logHandler)(objFragment, columns)
+
+  def dropTableIfExists(logHandler: LogHandler)(
+      objFragment: Fragment)
+      : ConnectionIO[Unit] =
+    (fr"DROP TABLE IF EXISTS" ++ objFragment)
       .updateWithLogHandler(logHandler)
       .run
+      .void
 
-    drop >> createTable(logHandler)(objFragment, columns)
-  }
 
   def truncateTable(logHandler: LogHandler)(
       objFragment: Fragment,
@@ -95,6 +99,19 @@ package object destination {
         createTable(logHandler)(objFragment, columns)
     }
 
+  def createTableIfNotExists(logHandler: LogHandler)(
+      objFragment: Fragment,
+      unsafeTable: String,
+      unsafeSchema: Option[String],
+      columns: NonEmptyList[(HI, SQLServerType)])
+      : ConnectionIO[Int] =
+    ifExists(logHandler)(unsafeTable, unsafeSchema).option flatMap { result =>
+      if (result.exists(_ == 0)) {
+        createTable(logHandler)(objFragment, columns)
+      } else {
+        0.pure[ConnectionIO]
+      }
+    }
   def createTable(logHandler: LogHandler)(
       objFragment: Fragment,
       columns: NonEmptyList[(HI, SQLServerType)])
