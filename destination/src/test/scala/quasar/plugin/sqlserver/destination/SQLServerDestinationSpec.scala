@@ -89,6 +89,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       }
     }
   }
+
   "write mode" >> {
     val cols = NonEmptyList.one(Column("value", CHAR(1)))
 

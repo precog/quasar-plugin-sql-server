@@ -158,7 +158,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
         }
     }
 
-    "upsert update rows with string typed primary key on append" >>* {
+    "upsert updates rows with string typed primary key on append" >>* {
       Consumer.upsert[String :: String :: HNil]().use { consumer =>
         val events =
           Stream(
@@ -190,7 +190,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
       }
     }
 
-    "upsert delete rows with long typed primary key on append" >>* {
+    "upsert deletes rows with long typed primary key on append" >>* {
       Consumer.upsert[Int :: String :: HNil]().use { consumer =>
         val events =
           Stream(
