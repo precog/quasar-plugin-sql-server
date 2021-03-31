@@ -95,7 +95,7 @@ object TempTableFlow {
         log: LogHandler,
         unsafeName: String,
         unsafeSchema: Option[String],
-        objFragment: Fragment,
+        tableFragment: Fragment,
         columns: NonEmptyList[(HI, SQLServerType)],
         idColumn: Option[Column[_]])
         : TempTable = {
@@ -103,18 +103,18 @@ object TempTableFlow {
       val tempName = s"precog_temp_$unsafeName"
       val hyName = SQLServerHygiene.hygienicIdent(Ident(tempName))
       val hySchema = SQLServerHygiene.hygienicIdent(Ident(schema))
-      val obj = Fragment.const0(hySchema.forSqlName) ++ fr0"." ++ Fragment.const0(hyName.forSqlName)
+      val tempFragment = Fragment.const0(hySchema.forSqlName) ++ fr0"." ++ Fragment.const0(hyName.forSqlName)
       val uName = hyName.unsafeForSqlName
       val uSchema = hySchema.unsafeForSqlName
 
       new TempTable {
         def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit] =
-          insertChunk(log)(obj, columns, chunk)
+          insertChunk(log)(tempFragment, columns, chunk)
 
         def drop: ConnectionIO[Unit] =
           ifExists(log)(uName, uSchema.some).option flatMap { results =>
             if (results.exists(_ === 1)) {
-              (fr"DROP TABLE" ++ obj)
+              (fr"DROP TABLE" ++ tempFragment)
                 .updateWithLogHandler(log)
                 .run
                 .void
@@ -127,7 +127,7 @@ object TempTableFlow {
           ifExists(log)(uName, uSchema.some).option flatMap { results =>
             if (results.exists(_ === 0)) {
               val columnsObj = createColumnSpecs(columns)
-              (fr"CREATE TABLE" ++ obj ++ fr0" " ++ columnsObj)
+              (fr"CREATE TABLE" ++ tempFragment ++ fr0" " ++ columnsObj)
                 .updateWithLogHandler(log)
                 .run
                 .void
@@ -139,7 +139,7 @@ object TempTableFlow {
         private def truncate: ConnectionIO[Unit] =
           ifExists(log)(uName, uSchema.some).option flatMap { results =>
             if (results.exists(_ === 1)) {
-              (fr"TRUNCATE TABLE" ++ obj)
+              (fr"TRUNCATE TABLE" ++ tempFragment)
                 .updateWithLogHandler(log)
                 .run
                 .void
@@ -150,16 +150,16 @@ object TempTableFlow {
 
         private def insertInto: ConnectionIO[Unit] =
           (fr"INSERT INTO" ++
-            objFragment ++ fr0" " ++
+            tableFragment ++ fr0" " ++
             fr"SELECT * FROM" ++
-            obj)
+            tempFragment)
             .updateWithLogHandler(log)
             .run
             .void
 
         private def rename: ConnectionIO[Unit] =
           (fr0"EXEC SP_RENAME '" ++
-            obj ++ fr0"', '" ++
+            tempFragment ++ fr0"', '" ++
             Fragment.const0(SQLServerHygiene.hygienicIdent(Ident(unsafeName)).unsafeForSqlName) ++ fr0"'")
             .updateWithLogHandler(log)
             .run
@@ -170,7 +170,9 @@ object TempTableFlow {
             Fragment.const0(parent) ++ fr0"." ++
             Fragment.const0(SQLServerHygiene.hygienicIdent(Ident(idColumn.name)).forSqlName)
 
-          val fragment = fr"DELETE target FROM" ++ objFragment ++ fr" target INNER JOIN" ++ obj ++ fr" temp" ++
+          val fragment =
+            fr"DELETE target FROM" ++ tableFragment ++
+            fr" target INNER JOIN" ++ tempFragment ++ fr" temp" ++
             fr"ON" ++ mkColumn("target") ++ fr0"=" ++ mkColumn("temp")
 
           fragment.updateWithLogHandler(log).run.void
@@ -187,21 +189,21 @@ object TempTableFlow {
         def persist(writeMode: WriteMode): ConnectionIO[Unit] = {
           val prepare = writeMode match {
             case WriteMode.Create =>
-              createTable(log)(objFragment, columns) >>
+              createTable(log)(tableFragment, columns) >>
               insertInto >>
               truncate
             case WriteMode.Replace =>
-              dropTableIfExists(log)(objFragment) >>
+              dropTableIfExists(log)(tableFragment) >>
               rename >>
               // We don't remove temp table in `persist`, it's handled in Resource instead.
               create
             case WriteMode.Truncate =>
               // This is `insertInto` instead of `renameTable` because user might want to preserve indices and so on
-              truncateTable(log)(objFragment, unsafeName, unsafeSchema, columns)  >>
+              truncateTable(log)(tableFragment, unsafeName, unsafeSchema, columns)  >>
               insertInto >>
               truncate
             case WriteMode.Append =>
-              createTableIfNotExists(log)(objFragment, unsafeName, unsafeSchema, columns) >>
+              createTableIfNotExists(log)(tableFragment, unsafeName, unsafeSchema, columns) >>
               insertInto >>
               truncate
           }
@@ -210,7 +212,7 @@ object TempTableFlow {
             val colFragment = Fragments.parentheses {
               Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName)
             }
-            createIndex(log)(objFragment, unsafeName, colFragment)
+            createIndex(log)(tableFragment, unsafeName, colFragment)
           }
           prepare >> mbCreateIndex
         }
