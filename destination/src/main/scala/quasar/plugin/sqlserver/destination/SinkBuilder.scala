@@ -23,21 +23,21 @@ import quasar.plugin.sqlserver._
 import quasar.api.push.OffsetKey
 import quasar.api.Column
 import quasar.api.resource.ResourcePath
-import quasar.connector.{AppendEvent, DataEvent, IdBatch, MonadResourceErr}
+import quasar.connector.{AppendEvent, DataEvent, MonadResourceErr}
 import quasar.connector.destination.{WriteMode => QWriteMode, ResultSink}, ResultSink.{UpsertSink, AppendSink}
 import quasar.connector.render.RenderConfig
 import quasar.lib.jdbc._
 import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
 import cats.~>
-import cats.data.{NonEmptyList, NonEmptyVector}
+import cats.data.NonEmptyList
 import cats.effect.{Effect, LiftIO}
+import cats.effect.concurrent.Ref
 import cats.implicits._
 
 import doobie._
-import doobie.free.connection.{commit, rollback, setAutoCommit, unit}
+import doobie.free.connection.commit
 import doobie.implicits._
-import doobie.util.transactor.Strategy
 
 import fs2.{Pipe, Stream}
 
@@ -116,18 +116,43 @@ object SinkBuilder {
         trace(logger)(s"Commit")
     }
 
-    def handleEvents(obj: Fragment)
+    def handleEvents(
+      refMode: Ref[ConnectionIO, QWriteMode],
+      objFragment: Fragment,
+      unsafeName: String,
+      unsafeSchema: Option[String],
+      tempTable: TempTable,
+      columns: NonEmptyList[(HI, SQLServerType)])
       : Pipe[ConnectionIO, DataEvent[CharSequence, OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]] = _ evalMap {
 
       case DataEvent.Create(chunk) =>
-        insertChunk(logHandler)(obj, hyColumns, chunk) >>
+        insertChunk(logHandler)(tempTable.obj, hyColumns, chunk) >>
         commit.as(none[OffsetKey.Actual[A]])
 
       case DataEvent.Delete(ids) =>
         none[OffsetKey.Actual[A]].pure[ConnectionIO]
 
-      case DataEvent.Commit(offset) =>
-        commit.as(offset).map(_.some)
+      case DataEvent.Commit(offset) => refMode.get flatMap {
+        case QWriteMode.Replace =>
+          TempTable.applyTempTable(logHandler)(
+            jwriteMode,
+            tempTable,
+            objFragment,
+            unsafeName,
+            unsafeSchema,
+            columns,
+            idColumn) >>
+          refMode.set(QWriteMode.Append) >>
+          commit.as(offset.some)
+        case QWriteMode.Append =>
+          val mbFilter = idColumn traverse_ { col =>
+            TempTable.filterTempIds(logHandler)(tempTable, objFragment, col)
+          }
+         mbFilter >>
+         TempTable.insertInto(logHandler)(tempTable, objFragment) >>
+         TempTable.truncateTempTable(logHandler)(tempTable) >>
+         commit.as(offset.some)
+      }
     }
 
     def trace(logger: Logger)(msg: => String): F[Unit] =
@@ -137,52 +162,28 @@ object SinkBuilder {
       for {
         (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, path)
 
+        refMode <- Ref.in[F, ConnectionIO, QWriteMode](writeMode)
+
         hygienicColumns = inputColumns.map { c =>
           (SQLServerHygiene.hygienicIdent(Ident(c.name)), c.tpe)
         }
 
         tempTable = TempTable.fromName(unsafeName, unsafeSchema)
 
-        columnsObj = createColumnSpecs(hygienicColumns)
-
-        outsideXA = Transactor.strategy.modify(xa, _ =>
-          Strategy(setAutoCommit(true), unit, unit, unit))
-
-        finalXA = Transactor.strategy.modify(xa, _ =>
-          Strategy(
-            setAutoCommit(false),
-            unit,
-            TempTable.dropTempTable(logHandler)(tempTable) >> rollback,
-            commit))
-
         prepareTempTable =
           TempTable.dropTempTable(logHandler)(tempTable) >>
-          TempTable.createTempTable(logHandler)(tempTable, columnsObj) >>
+          TempTable.createTempTable(logHandler)(tempTable, hygienicColumns) >>
           commit
 
         putToTempTable =
           events.evalTap(logEvents).translate(toConnectionIO)
-            .through(handleEvents(tempTable.obj))
+            .through(handleEvents(refMode, objFragment, unsafeName, unsafeSchema, tempTable, hyColumns))
             .unNone
 
-        finalize = writeMode match {
-          case QWriteMode.Replace =>
-            TempTable.applyTempTable(logHandler)(
-              jwriteMode,
-              tempTable,
-              objFragment,
-              unsafeName,
-              unsafeSchema,
-              hygienicColumns,
-              idColumn)
-          case QWriteMode.Append =>
-            val mbFilter = idColumn traverse_ { col =>
-              TempTable.filterTempIds(logHandler)(tempTable, objFragment, col)
-            }
-           mbFilter >>
-           TempTable.insertInto(logHandler)(tempTable, objFragment) >>
-           TempTable.dropTempTable(logHandler)(tempTable)
-        }
+        finalize =
+          TempTable.dropTempTable(logHandler)(tempTable) >>
+          commit
+
 
         logStart = trace(logger)("Starting load")
         logEnd = trace(logger)("Finished load")
@@ -191,7 +192,7 @@ object SinkBuilder {
         Stream.eval_(logStart) ++
         Stream.eval_(prepareTempTable.transact(xa)) ++
         putToTempTable.translate(λ[ConnectionIO ~> F](_.transact(xa))) ++
-        Stream.eval_(finalize.transact(finalXA)) ++
+        Stream.eval_(finalize.transact(xa)) ++
         Stream.eval_(logEnd)
       }
     }

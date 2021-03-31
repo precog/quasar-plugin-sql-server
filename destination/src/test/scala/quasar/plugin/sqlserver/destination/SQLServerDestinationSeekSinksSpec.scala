@@ -83,6 +83,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
 
   "seek sinks (upsert and append)" should {
     val XStringCol = Column("x", SQLServerType.NVARCHAR(255))
+
     "write after commit" >> Consumer.appendAndUpsert[String :: String :: HNil] { (toOpt, consumer) =>
       val events =
         Stream(
@@ -157,8 +158,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
         }
     }
 
-    /*
-    "upsert delete rows with string typed primary key" >>* {
+    "upsert update rows with string typed primary key on append" >>* {
       Consumer.upsert[String :: String :: HNil]().use { consumer =>
         val events =
           Stream(
@@ -166,23 +166,31 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
               List(
                 ("x" ->> "foo") :: ("y" ->> "bar") :: HNil,
                 ("x" ->> "baz") :: ("y" ->> "qux") :: HNil)),
-            UpsertEvent.Commit("commit1"),
+            UpsertEvent.Commit("commit1"))
+
+        val append =
+          Stream(
             UpsertEvent.Delete(Ids.StringIds(List("foo"))),
+            UpsertEvent.Create(
+              List(
+                ("x" ->> "foo") :: ("y" ->> "check0") :: HNil,
+                ("x" ->> "bar") :: ("y" ->> "check1") :: HNil)),
             UpsertEvent.Commit("commit2"))
 
         for {
           tbl <- freshTableName
-          (values, offsets) <- consumer(tbl, Some(XStringCol), QWriteMode.Replace, events)
+          (values1, offsets1) <- consumer(tbl, Some(XStringCol), QWriteMode.Replace, events)
+          (values2, offsets2) <- consumer(tbl, Some(XStringCol), QWriteMode.Append, append)
         } yield {
-          values must_== List("baz" :: "qux" :: HNil)
-          offsets must_== List(
-            OffsetKey.Actual.string("commit1"),
-            OffsetKey.Actual.string("commit2"))
+          offsets1 must_== List(OffsetKey.Actual.string("commit1"))
+          offsets2 must_== List(OffsetKey.Actual.string("commit2"))
+          Set(values1:_*) must_== Set("foo" :: "bar" :: HNil, "baz" :: "qux" :: HNil)
+          Set(values2:_*) must_== Set("baz" :: "qux" :: HNil, "foo" :: "check0" :: HNil, "bar" :: "check1" :: HNil)
         }
       }
     }
 
-    "upsert delete rows with long typed primary key" >>* {
+    "upsert delete rows with long typed primary key on append" >>* {
       Consumer.upsert[Int :: String :: HNil]().use { consumer =>
         val events =
           Stream(
@@ -190,18 +198,25 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
               List(
                 ("x" ->> 40) :: ("y" ->> "bar") :: HNil,
                 ("x" ->> 42) :: ("y" ->> "qux") :: HNil)),
-            UpsertEvent.Commit("commit1"),
+            UpsertEvent.Commit("commit1"))
+
+        val append =
+          Stream(
             UpsertEvent.Delete(Ids.LongIds(List(40))),
+            UpsertEvent.Create(
+              List(
+                ("x" ->> 40) :: ("y" ->> "check") :: HNil)),
             UpsertEvent.Commit("commit2"))
 
         for {
           tbl <- freshTableName
-          (values, offsets) <- consumer(tbl, Some(Column("x", SQLServerType.INT)), QWriteMode.Replace, events)
+          (values1, offsets1) <- consumer(tbl, Some(Column("x", SQLServerType.INT)), QWriteMode.Replace, events)
+          (values2, offsets2) <- consumer(tbl, Some(Column("x", SQLServerType.INT)), QWriteMode.Append, append)
         } yield {
-          values must_== List(42 :: "qux" :: HNil)
-          offsets must_== List(
-            OffsetKey.Actual.string("commit1"),
-            OffsetKey.Actual.string("commit2"))
+          Set(values1:_*) must_== Set(40 :: "bar" :: HNil, 42 :: "qux" :: HNil)
+          Set(values2:_*) must_== Set(40 :: "check" :: HNil, 42 :: "qux" :: HNil)
+          offsets1 must_== List(OffsetKey.Actual.string("commit1"))
+          offsets2 must_== List(OffsetKey.Actual.string("commit2"))
         }
       }
     }
@@ -233,34 +248,6 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
       }
     }
 
-    "upsert delete same id twice" >>* {
-      Consumer.upsert[String :: String :: HNil]().use { consumer =>
-        val events =
-          Stream(
-            UpsertEvent.Create(
-              List(
-                ("x" ->> "foo") :: ("y" ->> "bar") :: HNil,
-                ("x" ->> "baz") :: ("y" ->> "qux") :: HNil)),
-            UpsertEvent.Commit("commit1"),
-            UpsertEvent.Delete(Ids.StringIds(List("foo"))),
-            UpsertEvent.Commit("commit2"),
-            UpsertEvent.Delete(Ids.StringIds(List("foo"))),
-            UpsertEvent.Commit("commit3"))
-
-        for {
-          tbl <- freshTableName
-          (values, offsets) <- consumer(tbl, Some(XStringCol), QWriteMode.Replace, events)
-        } yield {
-          values must_== List("baz" :: "qux" :: HNil)
-
-          offsets must_== List(
-            OffsetKey.Actual.string("commit1"),
-            OffsetKey.Actual.string("commit2"),
-            OffsetKey.Actual.string("commit3"))
-        }
-      }
-    }
-*/
     "creates table and then appends" >> Consumer.appendAndUpsert[String :: String :: HNil] { (toOpt, consumer) =>
       val events1 =
         Stream(
@@ -503,19 +490,23 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
       ktl: ToList[K, String],
       ttl: ToList[T, SQLServerType])
       : Stream[F, List[Column[SQLServerType]]] = {
-    val go = events.pull.peek1 flatMap {
-      case Some((UpsertEvent.Create(records), _)) => records.headOption match {
+    def go(inp: Stream[F, UpsertEvent[R]]): Pull[F, List[Column[SQLServerType]], Unit] = inp.pull.uncons1 flatMap {
+      case Some((UpsertEvent.Create(records), tail)) => records.headOption match {
         case Some(r) =>
           val rkeys = r.keys.toList
           val rtypes = r.values.map(columnType).toList
           val columns = rkeys.zip(rtypes).map((Column[SQLServerType] _).tupled)
-          Pull.output1(columns.filter(c => c.some =!= idColumn))
-        case _ =>
+          Pull.output1(columns.filter(c => c.some =!= idColumn)) >> Pull.done
+        case None =>
           Pull.done
       }
-      case _ => Pull.done
+      case Some((_, tail)) =>
+        go(tail)
+      case _ =>
+        Pull.done
+
     }
-    go.stream
+    go(events).stream
   }
 
   def toAppendSink[F[_]: Async, R <: HList, K <: HList, V <: HList, T <: HList, S <: HList](

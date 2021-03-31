@@ -57,7 +57,6 @@ private[destination] object CsvCreateSink {
     (renderConfig(columns), in => Stream.eval(pathFragment[F](schema, path)) flatMap { case (obj, uName, uSchema) =>
 
       val tempTable = TempTable.fromName(uName, uSchema)
-      val columnsObj = createColumnSpecs(hyCols)
 
       val outsideXA = Transactor.strategy.modify(xa, _ =>
           Strategy(setAutoCommit(true), unit, unit, unit))
@@ -71,7 +70,7 @@ private[destination] object CsvCreateSink {
 
       val prepare =
         TempTable.dropTempTable(logHandler)(tempTable) >>
-        TempTable.createTempTable(logHandler)(tempTable, columnsObj) >>
+        TempTable.createTempTable(logHandler)(tempTable, hyCols) >>
         commit
 
       val putToTemp =

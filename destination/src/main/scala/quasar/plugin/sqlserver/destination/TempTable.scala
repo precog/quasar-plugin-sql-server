@@ -53,9 +53,11 @@ object TempTable {
       }
     }
 
-  def createTempTable(log: LogHandler)(tempTable: TempTable, columnsObj: Fragment): ConnectionIO[Unit] =
+  def createTempTable(log: LogHandler)(tempTable: TempTable, columns: NonEmptyList[(HI, SQLServerType)])
+      : ConnectionIO[Unit] =
     ifExists(log)(tempTable.unsafeName, tempTable.unsafeSchema.some).option flatMap { results =>
       if (results.exists(_ === 0)) {
+        val columnsObj = createColumnSpecs(columns)
         (fr"CREATE TABLE" ++ tempTable.obj ++ fr0" " ++ columnsObj)
           .updateWithLogHandler(log)
           .run
@@ -105,14 +107,22 @@ object TempTable {
       : ConnectionIO[Unit] = {
     val prepare = writeMode match {
       case WriteMode.Create =>
-        createTable(log)(obj, columns) >> insertInto(log)(tempTable, obj)
+        createTable(log)(obj, columns) >>
+        insertInto(log)(tempTable, obj) >>
+        truncateTempTable(log)(tempTable)
       case WriteMode.Replace =>
-        dropTableIfExists(log)(obj) >> renameTable(log)(tempTable, unsafeName)
+        dropTableIfExists(log)(obj) >>
+        renameTable(log)(tempTable, unsafeName) >>
+        createTempTable(log)(tempTable, columns)
       case WriteMode.Truncate =>
         // This is `insertInto` instead of `renameTable` because user might want to preser indices and so on
-        truncateTable(log)(obj, unsafeName, unsafeSchema, columns) // >> insertInto(log)(tempTable, obj)
+        truncateTable(log)(obj, unsafeName, unsafeSchema, columns)  >>
+        insertInto(log)(tempTable, obj) >>
+        truncateTempTable(log)(tempTable)
       case WriteMode.Append =>
-        createTableIfNotExists(log)(obj, unsafeName, unsafeSchema, columns) >> insertInto(log)(tempTable, obj)
+        createTableIfNotExists(log)(obj, unsafeName, unsafeSchema, columns) >>
+        insertInto(log)(tempTable, obj) >>
+        truncateTempTable(log)(tempTable)
     }
 
     val mbCreateIndex = idColumn traverse_ { col =>
