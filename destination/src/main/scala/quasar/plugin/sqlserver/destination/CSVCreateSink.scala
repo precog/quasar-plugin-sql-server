@@ -26,18 +26,14 @@ import java.lang.CharSequence
 
 import cats.data.NonEmptyList
 import cats.effect.ConcurrentEffect
-import cats.implicits._
 
 import doobie._
-import doobie.free.connection.{commit, setAutoCommit, unit, rollback}
 import doobie.implicits._
-import doobie.util.transactor.Strategy
 
 import fs2.{Pipe, Stream}
 
 import org.slf4s.Logger
 
-import quasar.lib.jdbc.Slf4sLogHandler
 import quasar.lib.jdbc.destination.WriteMode
 
 private[destination] object CsvCreateSink {
@@ -49,8 +45,6 @@ private[destination] object CsvCreateSink {
       path: ResourcePath,
       columns: NonEmptyList[Column[SQLServerType]])
       : (RenderConfig[CharSequence], Pipe[F, CharSequence, Unit]) = {
-
-    val logHandler = Slf4sLogHandler(logger)
 
     val hyCols = hygienicColumns(columns)
 
