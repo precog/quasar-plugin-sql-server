@@ -182,8 +182,7 @@ object TempTableFlow {
           val mbFilter = idColumn traverse_ { col => filterTempIds(col) }
           mbFilter >>
           insertInto >>
-          truncate >>
-          commit
+          truncate
         }
 
         def persist(writeMode: WriteMode): ConnectionIO[Unit] = {
