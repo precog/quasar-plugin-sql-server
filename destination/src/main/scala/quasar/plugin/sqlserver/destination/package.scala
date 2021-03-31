@@ -25,7 +25,6 @@ import quasar.connector.{MonadResourceErr, ResourceError}
 import quasar.connector.render.RenderConfig
 import quasar.lib.jdbc
 import quasar.lib.jdbc.Ident
-import quasar.lib.jdbc.destination.WriteMode
 
 import cats.{Applicative, Functor}
 import cats.data.NonEmptyList
@@ -186,27 +185,6 @@ package object destination {
           hyT.unsafeForSqlName,
           hyD.unsafeForSqlName.some)
     }
-  }
-
-  def startLoad(logHandler: LogHandler)(
-    writeMode: WriteMode,
-    obj: Fragment,
-    unsafeName: String,
-    unsafeSchema: Option[String],
-    columns: NonEmptyList[(HI, SQLServerType)],
-    idColumn: Option[Column[_]])
-      : ConnectionIO[Unit] = {
-    val prepareTable = writeMode match {
-      case WriteMode.Create => createTable(logHandler)(obj, columns)
-      case WriteMode.Replace => replaceTable(logHandler)(obj, columns)
-      case WriteMode.Truncate => truncateTable(logHandler)(obj, unsafeName, unsafeSchema, columns)
-      case WriteMode.Append => appendToTable(logHandler)(obj, unsafeName, unsafeSchema, columns)
-    }
-    val mbCreateIndex = idColumn traverse_ { col =>
-      val colFragment = Fragments.parentheses(Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName))
-      createIndex(logHandler)(obj, unsafeName, colFragment)
-    }
-    prepareTable >> mbCreateIndex
   }
 
   def hygienicColumns[F[_]: Functor, A](cols: F[Column[A]]): F[(HI, A)] = cols map { c =>

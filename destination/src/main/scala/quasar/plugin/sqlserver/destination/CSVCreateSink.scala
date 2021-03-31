@@ -54,35 +54,10 @@ private[destination] object CsvCreateSink {
 
     val hyCols = hygienicColumns(columns)
 
-    (renderConfig(columns), in => Stream.eval(pathFragment[F](schema, path)) flatMap { case (obj, uName, uSchema) =>
-
-      val tempTable = TempTable.fromName(uName, uSchema)
-
-      val outsideXA = Transactor.strategy.modify(xa, _ =>
-          Strategy(setAutoCommit(true), unit, unit, unit))
-
-      val finalXA = Transactor.strategy.modify(xa, _ =>
-          Strategy(
-            setAutoCommit(false),
-            unit,
-            TempTable.dropTempTable(logHandler)(tempTable) >> rollback,
-            commit))
-
-      val prepare =
-        TempTable.dropTempTable(logHandler)(tempTable) >>
-        TempTable.createTempTable(logHandler)(tempTable, hyCols) >>
-        commit
-
-      val putToTemp =
-        in.chunks.evalMap(insertChunk(logHandler)(tempTable.obj, hyCols, _).transact(outsideXA))
-
-      val rename =
-        TempTable.applyTempTable(logHandler)(writeMode, tempTable, obj, uName, uSchema, hyCols, None) >>
-        TempTable.dropTempTable(logHandler)(tempTable) >>
-        commit
-
-      Stream.eval(prepare.transact(xa)) ++ putToTemp ++ Stream.eval(rename.transact(finalXA))
-
-    })
+    (renderConfig(columns), in => for {
+      flow <- Stream.resource(TempTableFlow(xa, logger, path, schema, hyCols, None))
+      _ <- in.chunks.evalMap(x => flow.ingest(x).transact(xa))
+      _ <- Stream.eval(flow.replace(writeMode).transact(xa))
+    } yield ())
   }
 }
