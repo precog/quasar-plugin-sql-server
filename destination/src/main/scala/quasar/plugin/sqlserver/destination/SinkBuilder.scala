@@ -136,7 +136,7 @@ object SinkBuilder {
 
       case DataEvent.Commit(offset) => refMode.get flatMap {
         case QWriteMode.Replace =>
-          flow.replace(jwriteMode) >>
+          flow.replace >>
           refMode.set(QWriteMode.Append).as(offset.some)
         case QWriteMode.Append =>
           flow.append.as(offset.some)
@@ -147,7 +147,7 @@ object SinkBuilder {
       Effect[F].delay(logger.trace(msg))
 
     val result = for {
-      flow <- Stream.resource(TempTableFlow(xa, logger, path, schema, hyColumns, actualId, actualFilter))
+      flow <- Stream.resource(TempTableFlow(xa, logger, jwriteMode, path, schema, hyColumns, actualId, actualFilter))
       refMode <- Stream.eval(Ref.in[F, ConnectionIO, QWriteMode](writeMode))
       offset <- {
         events.evalTap(logEvents)

@@ -41,7 +41,7 @@ import org.slf4s.Logger
 
 sealed trait TempTableFlow {
   def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit]
-  def replace(writeMode: WriteMode): ConnectionIO[Unit]
+  def replace: ConnectionIO[Unit]
   def append: ConnectionIO[Unit]
 }
 
@@ -49,6 +49,7 @@ object TempTableFlow {
   def apply[F[_]: Sync: MonadResourceErr](
       xa: Transactor[F],
       logger: Logger,
+      writeMode: WriteMode,
       path: ResourcePath,
       schema: String,
       columns: NonEmptyList[(HI, SQLServerType)],
@@ -60,7 +61,7 @@ object TempTableFlow {
 
     val acquire: F[(TempTable, TempTableFlow)] = for {
       (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, path)
-      tempTable = TempTable(log, unsafeName, unsafeSchema, objFragment, columns, idColumn, filterColumn)
+      tempTable = TempTable(log, writeMode, unsafeName, unsafeSchema, objFragment, columns, idColumn, filterColumn)
       _ <- {
         tempTable.drop >>
         tempTable.create >>
@@ -70,8 +71,8 @@ object TempTableFlow {
       val flow = new TempTableFlow {
         def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit] =
           tempTable.ingest(chunk) >> commit
-        def replace(writeMode: WriteMode) =
-          tempTable.persist(writeMode) >> commit
+        def replace =
+          tempTable.persist >> commit
         def append =
           tempTable.append >> commit
       }
@@ -87,13 +88,14 @@ object TempTableFlow {
     def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit]
     def drop: ConnectionIO[Unit]
     def create: ConnectionIO[Unit]
-    def persist(writeMode: WriteMode): ConnectionIO[Unit]
+    def persist: ConnectionIO[Unit]
     def append: ConnectionIO[Unit]
   }
 
   private object TempTable {
     def apply(
         log: LogHandler,
+        writeMode: WriteMode,
         unsafeName: String,
         unsafeSchema: Option[String],
         tableFragment: Fragment,
@@ -194,7 +196,7 @@ object TempTableFlow {
           truncate
         }
 
-        def persist(writeMode: WriteMode): ConnectionIO[Unit] = {
+        def persist: ConnectionIO[Unit] = {
           val prepare = writeMode match {
             case WriteMode.Create =>
               createTable(log)(tableFragment, columns) >>

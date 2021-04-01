@@ -49,9 +49,9 @@ private[destination] object CsvCreateSink {
     val hyCols = hygienicColumns(columns)
 
     (renderConfig(columns), in => for {
-      flow <- Stream.resource(TempTableFlow(xa, logger, path, schema, hyCols, None, None))
+      flow <- Stream.resource(TempTableFlow(xa, logger, writeMode, path, schema, hyCols, None, None))
       _ <- in.chunks.evalMap(x => flow.ingest(x).transact(xa))
-      _ <- Stream.eval(flow.replace(writeMode).transact(xa))
+      _ <- Stream.eval(flow.replace.transact(xa))
     } yield ())
   }
 }
