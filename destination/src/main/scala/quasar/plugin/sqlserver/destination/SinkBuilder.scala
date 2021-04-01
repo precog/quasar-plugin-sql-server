@@ -19,8 +19,8 @@ package quasar.plugin.sqlserver.destination
 import slamdata.Predef._
 
 
+import quasar.api.{Column, ColumnType}
 import quasar.api.push.OffsetKey
-import quasar.api.Column
 import quasar.api.resource.ResourcePath
 import quasar.connector.{AppendEvent, DataEvent, MonadResourceErr}
 import quasar.connector.destination.{WriteMode => QWriteMode, ResultSink}, ResultSink.{UpsertSink, AppendSink}
@@ -88,7 +88,6 @@ object SinkBuilder {
     (renderConfig(args.columns), consume)
   }
 
-
   private def upsertPipe[F[_]: Effect: MonadResourceErr, A](
       xa: Transactor[F],
       writeMode: QWriteMode,
@@ -103,7 +102,17 @@ object SinkBuilder {
 
     val toConnectionIO = Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
 
-    val hyColumns = hygienicColumns(inputColumns)
+    val (actualId, actualColumns0) = idColumn match {
+      case Some(c) => ensureIndexableIdColumn(c, inputColumns).leftMap(Some(_))
+      case None => (None, inputColumns)
+    }
+
+    val (actualFilter, actualColumns) = filterColumn match {
+      case Some(c) => ensureIndexableIdColumn(c, actualColumns0).leftMap(Some(_))
+      case None => (None, actualColumns0)
+    }
+
+    val hyColumns = hygienicColumns(actualColumns)
 
     def logEvents(event: DataEvent[CharSequence, _]): F[Unit] = event match {
       case DataEvent.Create(chunk) =>
@@ -138,7 +147,7 @@ object SinkBuilder {
       Effect[F].delay(logger.trace(msg))
 
     val result = for {
-      flow <- Stream.resource(TempTableFlow(xa, logger, path, schema, hyColumns, idColumn, filterColumn))
+      flow <- Stream.resource(TempTableFlow(xa, logger, path, schema, hyColumns, actualId, actualFilter))
       refMode <- Stream.eval(Ref.in[F, ConnectionIO, QWriteMode](writeMode))
       offset <- {
         events.evalTap(logEvents)
@@ -153,4 +162,20 @@ object SinkBuilder {
     result ++
     Stream.eval_(trace(logger)("Finished load"))
   }
+
+  /** Ensures the provided identity column is suitable for indexing by SQL Server,
+    * adjusting the type to one that is compatible and indexable if not.
+    */
+  private def ensureIndexableIdColumn(
+      id: Column[SQLServerType],
+      columns: NonEmptyList[Column[SQLServerType]])
+      : (Column[SQLServerType], NonEmptyList[Column[SQLServerType]]) =
+    Typer.inferScalar(id.tpe)
+      .collect {
+        case t @ ColumnType.String if id.tpe.some === Typer.preferred(t) =>
+          val indexableId = id.as(SQLServerType.VARCHAR(MaxIndexableVarchars))
+          val cols = columns.map(c => if (c === id) indexableId else c)
+          (indexableId, cols)
+      }
+      .getOrElse((id, columns))
 }

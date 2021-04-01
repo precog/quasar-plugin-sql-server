@@ -18,6 +18,7 @@ package quasar.plugin.sqlserver.destination
 
 import scala._, Predef._
 
+import cats.Eq
 import cats.data.Ior
 
 import doobie.Fragment
@@ -27,6 +28,7 @@ import quasar.api.push.param._
 import quasar.connector.destination.Constructor
 
 sealed abstract class SQLServerType(spec: String) extends Product with Serializable {
+  def id: SQLServerTypeId
   def asSql: Fragment = Fragment.const0(spec)
 }
 
@@ -36,7 +38,9 @@ object SQLServerType {
 
   case object BIT extends SQLServerTypeId.SelfIdentified("BIT", 1)
 
-  final case class CHAR(length: Int) extends SQLServerType(s"CHAR($length)")
+  final case class CHAR(length: Int) extends SQLServerType(s"CHAR($length)") {
+    def id = CHAR
+  }
   case object CHAR extends SQLServerTypeId.HigherKinded(2) {
     val constructor = Constructor.Unary(LengthCharsParam(8000), CHAR(_))
   }
@@ -45,17 +49,23 @@ object SQLServerType {
 
   case object DATETIME extends SQLServerTypeId.SelfIdentified("DATETIME", 4)
 
-  final case class DATETIME2(precision: Int) extends SQLServerType(s"DATETIME2($precision)")
+  final case class DATETIME2(precision: Int) extends SQLServerType(s"DATETIME2($precision)") {
+    def id = DATETIME2
+  }
   case object DATETIME2 extends SQLServerTypeId.HigherKinded(5) {
     val constructor = Constructor.Unary(PrecisionDateTimeParam(7), DATETIME2(_))
   }
 
-  final case class DATETIMEOFFSET(precision: Int) extends SQLServerType(s"DATETIMEOFFSET($precision)")
+  final case class DATETIMEOFFSET(precision: Int) extends SQLServerType(s"DATETIMEOFFSET($precision)") {
+    def id = DATETIMEOFFSET
+  }
   case object DATETIMEOFFSET extends SQLServerTypeId.HigherKinded(6) {
     val constructor = Constructor.Unary(PrecisionDateTimeParam(7), DATETIMEOFFSET(_))
   }
 
-  final case class DECIMAL(precision: Int, scale: Int) extends SQLServerType(s"DECIMAL($precision, $scale)")
+  final case class DECIMAL(precision: Int, scale: Int) extends SQLServerType(s"DECIMAL($precision, $scale)") {
+    def id = DECIMAL
+  }
   case object DECIMAL extends SQLServerTypeId.HigherKinded(7) {
     val constructor = {
       val precisionParam: Labeled[Formal[Int]] =
@@ -71,19 +81,25 @@ object SQLServerType {
     }
   }
 
-  final case class FLOAT(precision: Int) extends SQLServerType(s"FLOAT($precision)")
+  final case class FLOAT(precision: Int) extends SQLServerType(s"FLOAT($precision)") {
+    def id = FLOAT
+  }
   case object FLOAT extends SQLServerTypeId.HigherKinded(8) {
     val constructor = Constructor.Unary(PrecisionFloatParam(53), FLOAT(_))
   }
 
   case object INT extends SQLServerTypeId.SelfIdentified("INT", 9)
 
-  final case class NCHAR(length: Int) extends SQLServerType(s"NCHAR($length)")
+  final case class NCHAR(length: Int) extends SQLServerType(s"NCHAR($length)") {
+    def id = NCHAR
+  }
   case object NCHAR extends SQLServerTypeId.HigherKinded(10) {
     val constructor = Constructor.Unary(LengthCharsParam(4000), NCHAR(_))
   }
 
-  final case class NUMERIC(precision: Int, scale: Int) extends SQLServerType(s"NUMERIC($precision, $scale)")
+  final case class NUMERIC(precision: Int, scale: Int) extends SQLServerType(s"NUMERIC($precision, $scale)") {
+    def id = NUMERIC
+  }
   case object NUMERIC extends SQLServerTypeId.HigherKinded(11) {
     val constructor = {
       val precisionParam: Labeled[Formal[Int]] =
@@ -99,7 +115,9 @@ object SQLServerType {
     }
   }
 
-  final case class NVARCHAR(length: Int) extends SQLServerType(s"NVARCHAR($length)")
+  final case class NVARCHAR(length: Int) extends SQLServerType(s"NVARCHAR($length)") {
+    def id = NVARCHAR
+  }
   case object NVARCHAR extends SQLServerTypeId.HigherKinded(12) {
     val constructor = Constructor.Unary(LengthCharsParam(4000), NVARCHAR(_))
   }
@@ -114,17 +132,24 @@ object SQLServerType {
 
   case object TEXT extends SQLServerTypeId.SelfIdentified("TEXT", 17)
 
-  final case class TIME(precision: Int) extends SQLServerType(s"TIME($precision)")
+  final case class TIME(precision: Int) extends SQLServerType(s"TIME($precision)") {
+    def id = TIME
+  }
   case object TIME extends SQLServerTypeId.HigherKinded(18) {
     val constructor = Constructor.Unary(PrecisionDateTimeParam(7), TIME(_))
   }
 
   case object TINYINT extends SQLServerTypeId.SelfIdentified("TINYINT", 19)
 
-  final case class VARCHAR(length: Int) extends SQLServerType(s"VARCHAR($length)")
+  final case class VARCHAR(length: Int) extends SQLServerType(s"VARCHAR($length)") {
+    def id = VARCHAR
+  }
   case object VARCHAR extends SQLServerTypeId.HigherKinded(20) {
     val constructor = Constructor.Unary(LengthCharsParam(8000), VARCHAR(_))
   }
+
+  implicit val sqlServerTypeEq: Eq[SQLServerType] =
+    Eq.fromUniversalEquals
 
   ////
 
@@ -146,7 +171,9 @@ object SQLServerTypeId {
   import SQLServerType._
 
   sealed abstract class SelfIdentified(spec: String, val ordinal: Int)
-      extends SQLServerType(spec) with SQLServerTypeId
+      extends SQLServerType(spec) with SQLServerTypeId {
+    def id = this
+  }
 
   sealed abstract class HigherKinded(val ordinal: Int) extends SQLServerTypeId {
     def constructor: Constructor[SQLServerType]
@@ -175,4 +202,7 @@ object SQLServerTypeId {
       TIME,
       TINYINT,
       VARCHAR)
+
+  implicit val sqlServerTypeIdEq: Eq[SQLServerTypeId] =
+    Eq.fromUniversalEquals
 }

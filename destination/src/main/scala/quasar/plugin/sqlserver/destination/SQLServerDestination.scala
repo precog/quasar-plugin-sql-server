@@ -40,8 +40,6 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
     logger: Logger)
     extends Destination[F] {
 
-  import SQLServerType._
-
   type Type = SQLServerType
   type TypeId = SQLServerTypeId
 
@@ -58,53 +56,11 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
   val typeIdLabel: Label[TypeId] =
     Label.label[TypeId](_.toString)
 
-  def coerce(tpe: ColumnType.Scalar): TypeCoercion[TypeId] = {
-    def satisfied(t: TypeId, ts: TypeId*) =
-      TypeCoercion.Satisfied(NonEmptyList(t, ts.toList))
-
-    tpe match {
-      case ColumnType.Boolean => satisfied(BIT)
-
-      case ColumnType.LocalTime => satisfied(TIME)
-      case ColumnType.LocalDate => satisfied(DATE)
-      case ColumnType.LocalDateTime => satisfied(DATETIME2, DATETIME, SMALLDATETIME)
-      case ColumnType.OffsetDateTime => satisfied(DATETIMEOFFSET)
-
-      case ColumnType.OffsetTime =>
-        TypeCoercion.Unsatisfied(List(ColumnType.LocalTime), None)
-
-      case ColumnType.OffsetDate =>
-        TypeCoercion.Unsatisfied(List(ColumnType.LocalDate), None)
-
-      case ColumnType.Number =>
-        satisfied(
-          FLOAT,
-          INT,
-          DECIMAL,
-          BIGINT,
-          NUMERIC,
-          REAL,
-          SMALLINT,
-          TINYINT)
-
-      case ColumnType.String =>
-        satisfied(
-          TEXT,
-          NTEXT,
-          NCHAR,
-          NVARCHAR,
-          CHAR,
-          VARCHAR)
-
-      case _ => TypeCoercion.Unsatisfied(Nil, None)
-    }
-  }
+  def coerce(tpe: ColumnType.Scalar): TypeCoercion[TypeId] =
+    Typer.coerce(tpe)
 
   def construct(id: TypeId): Either[Type, Constructor[Type]] =
-    id match {
-      case tpe: SQLServerTypeId.SelfIdentified => Left(tpe)
-      case hk: SQLServerTypeId.HigherKinded => Right(hk.constructor)
-    }
+    Typer.construct(id)
 }
 
 object SQLServerDestination {
