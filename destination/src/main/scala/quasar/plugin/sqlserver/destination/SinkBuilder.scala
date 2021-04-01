@@ -63,6 +63,7 @@ object SinkBuilder {
       args.path,
       Some(args.idColumn),
       args.columns,
+      Some(args.idColumn),
       logger))
     (renderConfig(args.columns), consume)
   }
@@ -82,6 +83,7 @@ object SinkBuilder {
       args.path,
       args.pushColumns.primary,
       args.columns,
+      None,
       logger))
     (renderConfig(args.columns), consume)
   }
@@ -95,6 +97,7 @@ object SinkBuilder {
       path: ResourcePath,
       idColumn: Option[Column[SQLServerType]],
       inputColumns: NonEmptyList[Column[SQLServerType]],
+      filterColumn: Option[Column[SQLServerType]],
       logger: Logger)
       : Pipe[F, DataEvent[CharSequence, OffsetKey.Actual[A]], OffsetKey.Actual[A]] = { events =>
 
@@ -135,7 +138,7 @@ object SinkBuilder {
       Effect[F].delay(logger.trace(msg))
 
     val result = for {
-      flow <- Stream.resource(TempTableFlow(xa, logger, path, schema, hyColumns, idColumn))
+      flow <- Stream.resource(TempTableFlow(xa, logger, path, schema, hyColumns, idColumn, filterColumn))
       refMode <- Stream.eval(Ref.in[F, ConnectionIO, QWriteMode](writeMode))
       offset <- {
         events.evalTap(logEvents)

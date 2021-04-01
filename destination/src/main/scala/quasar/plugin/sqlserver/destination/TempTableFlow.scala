@@ -52,14 +52,15 @@ object TempTableFlow {
       path: ResourcePath,
       schema: String,
       columns: NonEmptyList[(HI, SQLServerType)],
-      idColumn: Option[Column[_]])
+      idColumn: Option[Column[_]],
+      filterColumn: Option[Column[_]])
       : Resource[F, TempTableFlow] = {
 
     val log = Slf4sLogHandler(logger)
 
     val acquire: F[(TempTable, TempTableFlow)] = for {
       (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, path)
-      tempTable = TempTable(log, unsafeName, unsafeSchema, objFragment, columns, idColumn)
+      tempTable = TempTable(log, unsafeName, unsafeSchema, objFragment, columns, idColumn, filterColumn)
       _ <- {
         tempTable.drop >>
         tempTable.create >>
@@ -97,7 +98,8 @@ object TempTableFlow {
         unsafeSchema: Option[String],
         tableFragment: Fragment,
         columns: NonEmptyList[(HI, SQLServerType)],
-        idColumn: Option[Column[_]])
+        idColumn: Option[Column[_]],
+        filterColumn: Option[Column[_]])
         : TempTable = {
       val schema = unsafeSchema.getOrElse("dbo")
       val tempName = s"precog_temp_$unsafeName"
@@ -123,8 +125,8 @@ object TempTableFlow {
             }
           }
 
-        def create: ConnectionIO[Unit] =
-          ifExists(log)(uName, uSchema.some).option flatMap { results =>
+        def create: ConnectionIO[Unit] = {
+          ifExists(log)(uName, uSchema.some).option.flatMap({ results =>
             if (results.exists(_ === 0)) {
               val columnsObj = createColumnSpecs(columns)
               (fr"CREATE TABLE" ++ tempFragment ++ fr0" " ++ columnsObj)
@@ -134,7 +136,14 @@ object TempTableFlow {
             } else {
               ().pure[ConnectionIO]
             }
-          }
+          }) >>
+          filterColumn.traverse_({ (col: Column[_]) =>
+            val colFragment = Fragments.parentheses {
+              Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName)
+            }
+            createIndex(log)(tempFragment, hyName.unsafeForSqlName, colFragment)
+          })
+        }
 
         private def truncate: ConnectionIO[Unit] =
           ifExists(log)(uName, uSchema.some).option flatMap { results =>
@@ -179,7 +188,7 @@ object TempTableFlow {
         }
 
         def append: ConnectionIO[Unit] = {
-          val mbFilter = idColumn traverse_ { col => filterTempIds(col) }
+          val mbFilter = filterColumn traverse_ { col => filterTempIds(col) }
           mbFilter >>
           insertInto >>
           truncate
