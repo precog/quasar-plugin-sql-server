@@ -20,7 +20,7 @@ import slamdata.Predef._
 
 import quasar.api.Column
 import quasar.api.resource.ResourcePath
-import quasar.connector.MonadResourceErr
+import quasar.connector.{MonadResourceErr, ResourceError}
 import quasar.lib.jdbc.{Ident, Slf4sLogHandler}
 import quasar.lib.jdbc.destination.WriteMode
 import quasar.plugin.sqlserver._
@@ -59,8 +59,33 @@ object TempTableFlow {
 
     val log = Slf4sLogHandler(logger)
 
+    def checkWriteMode(unsafeName: String, unsafeSchema: Option[String]): F[Unit] = {
+      val existing: ConnectionIO[Boolean] = ifExists(log)(unsafeName, unsafeSchema).option map { results =>
+        results.exists(_ === 1)
+      }
+      writeMode match {
+        case WriteMode.Create => existing.transact(xa) flatMap { exists =>
+          MonadResourceErr[F].raiseError(
+            ResourceError.accessDenied(
+              path,
+              "Create mode is set but the table exists already".some,
+              none)).whenA(exists)
+        }
+        case WriteMode.Truncate => existing.transact(xa) flatMap { exists =>
+          MonadResourceErr[F].raiseError(
+            ResourceError.accessDenied(
+              path,
+              "Truncate mode is set but the table doesn't exist".some,
+              none)).unlessA(exists)
+        }
+        case _ =>
+          ().pure[F]
+      }
+    }
+
     val acquire: F[(TempTable, TempTableFlow)] = for {
       (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, path)
+      _ <- checkWriteMode(unsafeName, unsafeSchema)
       tempTable = TempTable(log, writeMode, unsafeName, unsafeSchema, objFragment, columns, idColumn, filterColumn)
       _ <- {
         tempTable.drop >>
