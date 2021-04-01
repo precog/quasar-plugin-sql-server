@@ -71,13 +71,6 @@ object TempTableFlow {
               "Create mode is set but the table exists already".some,
               none)).whenA(exists)
         }
-        case WriteMode.Truncate => existing.transact(xa) flatMap { exists =>
-          MonadResourceErr[F].raiseError(
-            ResourceError.accessDenied(
-              path,
-              "Truncate mode is set but the table doesn't exist".some,
-              none)).unlessA(exists)
-        }
         case _ =>
           ().pure[F]
       }
