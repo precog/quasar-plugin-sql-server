@@ -34,7 +34,6 @@ import fs2.{Pipe, Stream}
 
 import org.slf4s.Logger
 
-import quasar.lib.jdbc.Slf4sLogHandler
 import quasar.lib.jdbc.destination.WriteMode
 
 private[destination] object CsvCreateSink {
@@ -47,13 +46,12 @@ private[destination] object CsvCreateSink {
       columns: NonEmptyList[Column[SQLServerType]])
       : (RenderConfig[CharSequence], Pipe[F, CharSequence, Unit]) = {
 
-    val logHandler = Slf4sLogHandler(logger)
-
     val hyCols = hygienicColumns(columns)
 
-    (renderConfig(columns), in => Stream.eval(pathFragment[F](schema, path)) flatMap { case (obj, uName, uSchema) =>
-      Stream.eval(startLoad(logHandler)(writeMode, obj, uName, uSchema, hyCols, None).transact(xa)) ++
-        in.chunks.evalMap(insertChunk(logHandler)(obj, hyCols, _).transact(xa))
-    })
+    (renderConfig(columns), in => for {
+      flow <- Stream.resource(TempTableFlow(xa, logger, writeMode, path, schema, hyCols, None, None))
+      _ <- in.chunks.evalMap(x => flow.ingest(x).transact(xa))
+      _ <- Stream.eval(flow.replace.transact(xa))
+    } yield ())
   }
 }

@@ -18,23 +18,22 @@ package quasar.plugin.sqlserver.destination
 
 import slamdata.Predef._
 
-import quasar.plugin.sqlserver._
 
 import quasar.api.{Column, ColumnType}
 import quasar.api.push.OffsetKey
 import quasar.api.resource.ResourcePath
-import quasar.connector.{AppendEvent, DataEvent, IdBatch, MonadResourceErr}
+import quasar.connector.{AppendEvent, DataEvent, MonadResourceErr}
 import quasar.connector.destination.{WriteMode => QWriteMode, ResultSink}, ResultSink.{UpsertSink, AppendSink}
 import quasar.connector.render.RenderConfig
-import quasar.lib.jdbc._
 import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
-import cats.data.{NonEmptyList, NonEmptyVector}
+import cats.~>
+import cats.data.NonEmptyList
 import cats.effect.{Effect, LiftIO}
-import cats.syntax.all._
+import cats.effect.concurrent.Ref
+import cats.implicits._
 
 import doobie._
-import doobie.free.connection.{commit, rollback}
 import doobie.implicits._
 
 import fs2.{Pipe, Stream}
@@ -64,6 +63,7 @@ object SinkBuilder {
       args.path,
       Some(args.idColumn),
       args.columns,
+      Some(args.idColumn),
       logger))
     (renderConfig(args.columns), consume)
   }
@@ -83,6 +83,7 @@ object SinkBuilder {
       args.path,
       args.pushColumns.primary,
       args.columns,
+      None,
       logger))
     (renderConfig(args.columns), consume)
   }
@@ -95,15 +96,20 @@ object SinkBuilder {
       path: ResourcePath,
       idColumn: Option[Column[SQLServerType]],
       inputColumns: NonEmptyList[Column[SQLServerType]],
+      filterColumn: Option[Column[SQLServerType]],
       logger: Logger)
       : Pipe[F, DataEvent[CharSequence, OffsetKey.Actual[A]], OffsetKey.Actual[A]] = { events =>
 
-    val logHandler = Slf4sLogHandler(logger)
     val toConnectionIO = Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
 
-    val (actualId, actualColumns) = idColumn match {
+    val (actualId, actualColumns0) = idColumn match {
       case Some(c) => ensureIndexableIdColumn(c, inputColumns).leftMap(Some(_))
       case None => (None, inputColumns)
+    }
+
+    val (actualFilter, actualColumns) = filterColumn match {
+      case Some(c) => ensureIndexableIdColumn(c, actualColumns0).leftMap(Some(_))
+      case None => (None, actualColumns0)
     }
 
     val hyColumns = hygienicColumns(actualColumns)
@@ -117,77 +123,44 @@ object SinkBuilder {
         trace(logger)(s"Commit")
     }
 
-    def handleEvents(obj: Fragment, unsafeName: String)
+    def handleEvents(
+      refMode: Ref[ConnectionIO, QWriteMode],
+      flow: TempTableFlow)
       : Pipe[ConnectionIO, DataEvent[CharSequence, OffsetKey.Actual[A]], Option[OffsetKey.Actual[A]]] = _ evalMap {
 
       case DataEvent.Create(chunk) =>
-        insertChunk(logHandler)(obj, hyColumns, chunk)
-          .as(none[OffsetKey.Actual[A]])
+        flow.ingest(chunk).as(none[OffsetKey.Actual[A]])
 
-      case DataEvent.Delete(ids) if ids.size < 1 =>
+      case DataEvent.Delete(ids) =>
         none[OffsetKey.Actual[A]].pure[ConnectionIO]
 
-      case DataEvent.Delete(ids) => actualId match {
-        case None =>
-          none[OffsetKey.Actual[A]].pure[ConnectionIO]
-
-        case Some(id) =>
-          val columnName = SQLServerHygiene.hygienicIdent(Ident(id.name))
-
-          val preamble: Fragment =
-            fr"DELETE FROM" ++ obj ++ fr" WHERE" ++ Fragment.const(columnName.forSqlName)
-
-          val deleteFragment: Fragment = ids match {
-            case IdBatch.Strings(values, size) =>
-              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
-            case IdBatch.Longs(values, size) =>
-              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
-            case IdBatch.Doubles(values, size) =>
-              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
-            case IdBatch.BigDecimals(values, size) =>
-              Fragments.in(preamble, NonEmptyVector.fromVectorUnsafe(values.take(size).toVector))
-          }
-
-          deleteFragment
-            .updateWithLogHandler(logHandler)
-            .run
-            .as(none[OffsetKey.Actual[A]])
+      case DataEvent.Commit(offset) => refMode.get flatMap {
+        case QWriteMode.Replace =>
+          flow.replace >>
+          refMode.set(QWriteMode.Append).as(offset.some)
+        case QWriteMode.Append =>
+          flow.append.as(offset.some)
       }
-
-      case DataEvent.Commit(offset) =>
-        commit.as(offset).map(_.some)
     }
 
     def trace(logger: Logger)(msg: => String): F[Unit] =
       Effect[F].delay(logger.trace(msg))
 
-    Stream.force {
-      for {
-        (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, path)
+    val result = for {
+      flow <- Stream.resource(TempTableFlow(xa, logger, jwriteMode, path, schema, hyColumns, actualId, actualFilter))
+      refMode <- Stream.eval(Ref.in[F, ConnectionIO, QWriteMode](writeMode))
+      offset <- {
+        events.evalTap(logEvents)
+          .translate(toConnectionIO)
+          .through(handleEvents(refMode, flow))
+          .unNone
+          .translate(λ[ConnectionIO ~> F](_.transact(xa)))
+      }
+    } yield offset
 
-        start = writeMode match {
-          case QWriteMode.Replace =>
-            (startLoad(logHandler)(
-              jwriteMode,
-              objFragment,
-              unsafeName,
-              unsafeSchema,
-              hyColumns,
-              actualId) >> commit)
-              .transact(xa)
-          case QWriteMode.Append =>
-            ().pure[F]
-        }
-
-        logStart = trace(logger)("Starting load")
-        logEnd = trace(logger)("Finished load")
-
-        translated = events.evalTap(logEvents).translate(toConnectionIO)
-        events0 = translated.through(handleEvents(objFragment, unsafeName)).unNone
-        rollback0 = Stream.eval(rollback).drain
-        handled = (events0 ++ rollback0).transact(xa)
-      } yield Stream.eval_(logStart) ++ Stream.eval_(start) ++ handled ++ Stream.eval_(logEnd)
-    }
+    Stream.eval_(trace(logger)("Starting load")) ++
+    result ++
+    Stream.eval_(trace(logger)("Finished load"))
   }
 
   /** Ensures the provided identity column is suitable for indexing by SQL Server,
