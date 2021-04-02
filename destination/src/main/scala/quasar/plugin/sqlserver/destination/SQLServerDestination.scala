@@ -20,7 +20,7 @@ import scala._, Predef._
 
 import cats.{~>, MonadError}
 import cats.data.NonEmptyList
-import cats.effect.{ConcurrentEffect, Timer, Effect, LiftIO}
+import cats.effect.{ConcurrentEffect, Timer, Effect}
 import cats.implicits._
 
 import doobie.{ConnectionIO, Transactor}
@@ -75,11 +75,10 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 object SQLServerDestination {
   private def retryN[F[_]: Effect: Timer](maxN: Int, timeout: FiniteDuration, n: Int): ConnectionIO ~> ConnectionIO =
     λ[ConnectionIO ~> ConnectionIO] { action =>
-      val toConnectionIO = Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
       action.attempt flatMap {
         case Right(a) => a.pure[ConnectionIO]
         case Left(e) if n < maxN =>
-          toConnectionIO(Timer[F].sleep(timeout)) >>
+          toConnectionIO[F].apply(Timer[F].sleep(timeout)) >>
           retryN[F](maxN, timeout, n + 1).apply(action)
         case Left(e) => MonadError[ConnectionIO, Throwable].raiseError(e)
       }

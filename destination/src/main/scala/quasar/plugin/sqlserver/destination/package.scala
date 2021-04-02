@@ -26,8 +26,9 @@ import quasar.connector.render.RenderConfig
 import quasar.lib.jdbc
 import quasar.lib.jdbc.Ident
 
-import cats.{Applicative, Functor}
+import cats.{Applicative, Functor, ~>}
 import cats.data.NonEmptyList
+import cats.effect.{Effect, LiftIO}
 import cats.implicits._
 
 import doobie._
@@ -213,4 +214,7 @@ package object destination {
 
     fragment.updateWithLogHandler(log).run
   }
+
+  def toConnectionIO[F[_]: Effect]: F ~> ConnectionIO =
+    Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
 }

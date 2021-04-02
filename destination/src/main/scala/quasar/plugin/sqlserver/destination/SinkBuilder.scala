@@ -29,7 +29,7 @@ import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
 import cats.~>
 import cats.data.NonEmptyList
-import cats.effect.{Effect, LiftIO}
+import cats.effect.Effect
 import cats.effect.concurrent.Ref
 import cats.implicits._
 
@@ -105,8 +105,6 @@ object SinkBuilder {
       logger: Logger)
       : Pipe[F, DataEvent[CharSequence, OffsetKey.Actual[A]], OffsetKey.Actual[A]] = { events =>
 
-    val toConnectionIO = Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
-
     val (actualId, actualColumns0) = idColumn match {
       case Some(c) => ensureIndexableIdColumn(c, inputColumns).leftMap(Some(_))
       case None => (None, inputColumns)
@@ -165,7 +163,7 @@ object SinkBuilder {
       refMode <- Stream.eval(Ref.in[F, ConnectionIO, QWriteMode](writeMode))
       offset <- {
         events.evalTap(logEvents)
-          .translate(toConnectionIO)
+          .translate(toConnectionIO[F])
           .through(handleEvents(refMode, flow))
           .unNone
           .translate(λ[ConnectionIO ~> F](_.transact(xa)))
