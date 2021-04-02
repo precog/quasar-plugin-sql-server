@@ -25,6 +25,7 @@ import quasar.lib.jdbc.{Ident, Slf4sLogHandler}
 import quasar.lib.jdbc.destination.WriteMode
 import quasar.plugin.sqlserver._
 
+import cats.{Alternative, ~>}
 import cats.data.NonEmptyList
 import cats.effect._
 import cats.implicits._
@@ -54,7 +55,8 @@ object TempTableFlow {
       schema: String,
       columns: NonEmptyList[(HI, SQLServerType)],
       idColumn: Option[Column[_]],
-      filterColumn: Option[Column[_]])
+      filterColumn: Option[Column[_]],
+      retry: ConnectionIO ~> ConnectionIO)
       : Resource[F, TempTableFlow] = {
 
     val log = Slf4sLogHandler(logger)
@@ -75,7 +77,7 @@ object TempTableFlow {
           ().pure[F]
       }
     }
-
+    // No retries in temp table init and checkWriteMode, since there is nothing yet inserted
     val acquire: F[(TempTable, TempTableFlow)] = for {
       (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, path)
       _ <- checkWriteMode(unsafeName, unsafeSchema)
@@ -88,14 +90,22 @@ object TempTableFlow {
     } yield {
       val flow = new TempTableFlow {
         def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit] =
-          tempTable.ingest(chunk) >> commit
+          retry(tempTable.ingest(chunk)) >>
+          retry(commit)
         def replace =
-          tempTable.persist >> commit
+          retry(tempTable.persist) >>
+          retry(commit)
         def append =
-          tempTable.append >> commit
+          retry(tempTable.append) >>
+          retry(commit)
       }
       (tempTable, flow)
     }
+    // We don't need retry here too, because when we're in `release`
+    // 1. Everything was OK, and temp table is empty, so, spending 10 minutes to just drop empty table blocking
+    // subsequent pushes doesn't seem good idea
+    // 2. Everything failed, we already tried to apply temp table for 10 minutes and had no success, other 10 minutes
+    // to just release is wasting time.
     val release: ((TempTable, TempTableFlow)) => F[Unit] = { case (tempTable, _) =>
       (tempTable.drop >> commit).transact(xa)
     }
@@ -161,7 +171,7 @@ object TempTableFlow {
             val colFragment = Fragments.parentheses {
               Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName)
             }
-            createIndex(log)(tempFragment, hyName.unsafeForSqlName, colFragment)
+            createIndex(log)(tempFragment, hyName.unsafeForSqlName, colFragment, indexName(unsafeName))
           })
         }
 
@@ -215,9 +225,17 @@ object TempTableFlow {
         }
 
         def persist: ConnectionIO[Unit] = {
+          val mbCreateIndex =
+            (Alternative[Option].guard(idColumn.map(_.name) =!= filterColumn.map(_.name)) *> idColumn) traverse_ { col =>
+              val colFragment = Fragments.parentheses {
+                Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName)
+              }
+              createIndex(log)(tableFragment, unsafeName, colFragment, indexName(unsafeName))
+            }
           val prepare = writeMode match {
             case WriteMode.Create =>
               createTable(log)(tableFragment, columns) >>
+              mbCreateIndex >>
               insertInto >>
               truncate
             case WriteMode.Replace =>
@@ -236,12 +254,6 @@ object TempTableFlow {
               truncate
           }
 
-          val mbCreateIndex = idColumn traverse_ { col =>
-            val colFragment = Fragments.parentheses {
-              Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName)
-            }
-            createIndex(log)(tableFragment, unsafeName, colFragment)
-          }
           prepare >> mbCreateIndex
         }
       }

@@ -19,6 +19,7 @@ package quasar.plugin.sqlserver.destination
 import quasar.plugin.sqlserver.ConnectionConfig
 
 import scala._, Predef._
+import scala.concurrent.duration._
 
 import argonaut._, Argonaut._
 
@@ -30,22 +31,43 @@ import quasar.lib.jdbc.destination.WriteMode
 final case class DestinationConfig(
     connectionConfig: ConnectionConfig,
     schema: Option[String],
-    writeMode: WriteMode) {
+    writeMode: WriteMode,
+    retryTransactionTimeoutMs: Option[Int],
+    maxTransactionReattempts: Option[Int]) {
 
   def jdbcUrl: String =
     connectionConfig.jdbcUrl
 
   def sanitized: DestinationConfig =
     copy(connectionConfig = connectionConfig.sanitized)
+
+  def retryTimeout: FiniteDuration =
+    retryTransactionTimeoutMs.map(_.milliseconds) getOrElse DestinationConfig.DefaultRetryTimeout
+
+  def maxReattempts: Int =
+    maxTransactionReattempts getOrElse DestinationConfig.DefaultMaxReattempts
 }
 
 object DestinationConfig {
+  private val DefaultRetryTimeout = 60.seconds
+  private val DefaultMaxReattempts = 10
+
   implicit val destinationConfigCodecJson: CodecJson[DestinationConfig] =
-    casecodec3(DestinationConfig.apply, DestinationConfig.unapply)("connection", "schema", "writeMode")
+    casecodec5(DestinationConfig.apply, DestinationConfig.unapply)(
+      "connection",
+      "schema",
+      "writeMode",
+      "retryTransactionTimeoutMs",
+      "maxTransactionReattempts")
 
   implicit val destinationConfigEq: Eq[DestinationConfig] =
-    Eq.by(c => (c.connectionConfig, c.schema, c.writeMode))
+    Eq.by(c => (
+      c.connectionConfig,
+      c.schema,
+      c.writeMode,
+      c.retryTransactionTimeoutMs,
+      c.maxTransactionReattempts))
 
   implicit val destinationConfigShow: Show[DestinationConfig] =
-    Show.show(c => s"DestinationConfig(${c.connectionConfig.show}, ${c.schema}, ${c.writeMode.show})")
+    Show.show(c => s"DestinationConfig(${c.connectionConfig.show}, ${c.schema}, ${c.writeMode.show}, ${c.retryTransactionTimeoutMs.show}, ${c.maxTransactionReattempts.show})")
 }

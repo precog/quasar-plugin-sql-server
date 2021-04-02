@@ -84,7 +84,7 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
               Some("com.microsoft.sqlserver.jdbc.SQLServerDriver")),
             connectionMaxConcurrency = maxConcurrency,
             connectionReadOnly = false)
-      txConfig = 
+      txConfig =
         tc.copy(poolConfig = tc.poolConfig.map(_.copy(connectionMaxLifetime = maxLifetime)))
     } yield txConfig
 
@@ -96,8 +96,13 @@ object SQLServerDestinationModule extends JdbcDestinationModule[DestinationConfi
       : Resource[F, Either[InitError, Destination[F]]] = {
     val schema = config.schema.getOrElse("dbo")
 
-    (new SQLServerDestination[F](config.writeMode, schema, transactor, log): Destination[F])
-      .asRight[InitError]
-      .pure[Resource[F, ?]]
+    val destination: Destination[F] = new SQLServerDestination[F](
+      config.writeMode,
+      schema,
+      transactor,
+      config.maxReattempts,
+      config.retryTimeout,
+      log)
+    destination.asRight[InitError].pure[Resource[F, *]]
   }
 }

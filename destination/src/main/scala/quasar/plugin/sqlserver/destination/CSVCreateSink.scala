@@ -24,6 +24,7 @@ import quasar.connector.render.RenderConfig
 import scala._, Predef._
 import java.lang.CharSequence
 
+import cats.~>
 import cats.data.NonEmptyList
 import cats.effect.ConcurrentEffect
 
@@ -40,6 +41,7 @@ private[destination] object CsvCreateSink {
   def apply[F[_]: ConcurrentEffect: MonadResourceErr](
       writeMode: WriteMode,
       xa: Transactor[F],
+      retry: ConnectionIO ~> ConnectionIO,
       logger: Logger,
       schema: String)(
       path: ResourcePath,
@@ -49,7 +51,7 @@ private[destination] object CsvCreateSink {
     val hyCols = hygienicColumns(columns)
 
     (renderConfig(columns), in => for {
-      flow <- Stream.resource(TempTableFlow(xa, logger, writeMode, path, schema, hyCols, None, None))
+      flow <- Stream.resource(TempTableFlow(xa, logger, writeMode, path, schema, hyCols, None, None, retry))
       _ <- in.chunks.evalMap(x => flow.ingest(x).transact(xa))
       _ <- Stream.eval(flow.replace.transact(xa))
     } yield ())
