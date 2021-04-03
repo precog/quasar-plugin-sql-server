@@ -89,15 +89,15 @@ object TempTableFlow {
       }.transact(xa)
     } yield {
       val flow = new TempTableFlow {
-        def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit] =
-          retry(tempTable.ingest(chunk)) >>
-          retry(commit)
-        def replace =
-          retry(tempTable.persist) >>
-          retry(commit)
-        def append =
-          retry(tempTable.append) >>
-          retry(commit)
+        def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit] = retry {
+          tempTable.ingest(chunk) >> commit
+        }
+        def replace = retry {
+          tempTable.persist >> commit
+        }
+        def append = retry {
+          tempTable.append >> commit
+        }
       }
       (tempTable, flow)
     }

@@ -24,6 +24,7 @@ import cats.effect.{ConcurrentEffect, Timer, Effect}
 import cats.implicits._
 
 import doobie.{ConnectionIO, Transactor}
+import doobie.free.connection.rollback
 import doobie.implicits._
 
 import monocle.Prism
@@ -78,6 +79,7 @@ object SQLServerDestination {
       action.attempt flatMap {
         case Right(a) => a.pure[ConnectionIO]
         case Left(e) if n < maxN =>
+          rollback >>
           toConnectionIO[F].apply(Timer[F].sleep(timeout)) >>
           retryN[F](maxN, timeout, n + 1).apply(action)
         case Left(e) => MonadError[ConnectionIO, Throwable].raiseError(e)
