@@ -18,10 +18,14 @@ package quasar.plugin.sqlserver.destination
 
 import scala._, Predef._
 
+import cats.{~>, MonadError}
 import cats.data.NonEmptyList
-import cats.effect.{ConcurrentEffect, Timer}
+import cats.effect.{ConcurrentEffect, Timer, Effect}
+import cats.implicits._
 
-import doobie.Transactor
+import doobie.{ConnectionIO, Transactor}
+import doobie.free.connection.rollback
+import doobie.implicits._
 
 import monocle.Prism
 
@@ -33,10 +37,14 @@ import quasar.connector.MonadResourceErr
 import quasar.connector.destination.{Constructor, Destination, ResultSink}
 import quasar.lib.jdbc.destination.WriteMode
 
+import scala.concurrent.duration.FiniteDuration
+
 private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: MonadResourceErr: Timer](
     writeMode: WriteMode,
     schema: String,
     xa: Transactor[F],
+    maxReattempts: Int,
+    retryTimeout: FiniteDuration,
     logger: Logger)
     extends Destination[F] {
 
@@ -45,10 +53,12 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
   val destinationType = SQLServerDestinationModule.destinationType
 
+  val retry = SQLServerDestination.retryN(maxReattempts, retryTimeout, 0)
+
   val sinks = NonEmptyList.of(
-    ResultSink.create(CsvCreateSink(writeMode, xa, logger, schema)),
-    ResultSink.upsert(SinkBuilder.upsert(xa, writeMode, schema, logger)),
-    ResultSink.append(SinkBuilder.append(xa, writeMode, schema, logger)))
+    ResultSink.create(CsvCreateSink(writeMode, xa, retry, logger, schema)),
+    ResultSink.upsert(SinkBuilder.upsert(xa, writeMode, schema, retry, logger)),
+    ResultSink.append(SinkBuilder.append(xa, writeMode, schema, retry, logger)))
 
   val typeIdOrdinal: Prism[Int, TypeId] =
     Prism(SQLServerDestination.OrdinalMap.get(_))(_.ordinal)
@@ -64,6 +74,18 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 }
 
 object SQLServerDestination {
+  private def retryN[F[_]: Effect: Timer](maxN: Int, timeout: FiniteDuration, n: Int): ConnectionIO ~> ConnectionIO =
+    λ[ConnectionIO ~> ConnectionIO] { action =>
+      action.attempt flatMap {
+        case Right(a) => a.pure[ConnectionIO]
+        case Left(e) if n < maxN =>
+          rollback >>
+          toConnectionIO[F].apply(Timer[F].sleep(timeout)) >>
+          retryN[F](maxN, timeout, n + 1).apply(action)
+        case Left(e) => MonadError[ConnectionIO, Throwable].raiseError(e)
+      }
+    }
+
   val OrdinalMap: Map[Int, SQLServerTypeId] =
     SQLServerTypeId.allIds
       .toList

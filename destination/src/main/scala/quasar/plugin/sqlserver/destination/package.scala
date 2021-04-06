@@ -26,8 +26,9 @@ import quasar.connector.render.RenderConfig
 import quasar.lib.jdbc
 import quasar.lib.jdbc.Ident
 
-import cats.{Applicative, Functor}
+import cats.{Applicative, Functor, ~>}
 import cats.data.NonEmptyList
+import cats.effect.{Effect, LiftIO}
 import cats.implicits._
 
 import doobie._
@@ -199,14 +200,21 @@ package object destination {
   def indexName(unsafeName: String): String =
     s"precog_id_idx_$unsafeName"
 
-  def createIndex(log: LogHandler)(obj: Fragment, unsafeName: String, column: Fragment): ConnectionIO[Int] = {
-    val strName = indexName(unsafeName)
-    val idxName = Fragment.const(SQLServerHygiene.hygienicIdent(Ident(strName)).forSqlName)
+  def createIndex(log: LogHandler)(
+      obj: Fragment,
+      unsafeName: String,
+      column: Fragment,
+      indexStrName: String)
+      : ConnectionIO[Int] = {
+    val idxName = Fragment.const(SQLServerHygiene.hygienicIdent(Ident(indexStrName)).forSqlName)
     val doCreate = fr"CREATE INDEX" ++ idxName ++ fr"ON" ++ obj ++ column
     val fragment = fr"IF NOT EXISTS(SELECT * FROM sys.indexes WHERE name = '" ++
-      Fragment.const0(strName) ++ fr0"' AND object_id = OBJECT_ID('" ++ Fragment.const0(unsafeName) ++
+      Fragment.const0(indexStrName) ++ fr0"' AND object_id = OBJECT_ID('" ++ Fragment.const0(unsafeName) ++
       fr"'))" ++ doCreate
 
     fragment.updateWithLogHandler(log).run
   }
+
+  def toConnectionIO[F[_]: Effect]: F ~> ConnectionIO =
+    Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
 }

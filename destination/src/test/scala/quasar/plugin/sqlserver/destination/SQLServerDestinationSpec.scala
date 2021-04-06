@@ -19,6 +19,8 @@ package quasar.plugin.sqlserver.destination
 import quasar.plugin.sqlserver._
 
 import scala.{text => _, Stream => _, _}, Predef._
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 import java.lang.CharSequence
 import java.time._
@@ -45,6 +47,8 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
 
   sequential // FIXME why don't these run in parallel
 
+  implicit val timer = IO.timer(ExecutionContext.Implicits.global)
+
   def createSink(
       dest: SQLServerDestination[IO],
       path: ResourcePath,
@@ -62,7 +66,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
       : Resource[IO, (Transactor[IO], SQLServerDestination[IO], ResourcePath, String)] =
     tableHarness(jdbcUrl, false, specialString) map {
       case (xa, path, name) => {
-        (xa, new SQLServerDestination(writeMode, schema, xa, log), path, name)
+        (xa, new SQLServerDestination(writeMode, schema, xa, 0, 1.seconds, log), path, name)
       }
     }
 

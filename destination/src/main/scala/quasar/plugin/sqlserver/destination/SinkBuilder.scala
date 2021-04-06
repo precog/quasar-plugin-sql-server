@@ -29,7 +29,7 @@ import quasar.lib.jdbc.destination.{WriteMode => JWriteMode}
 
 import cats.~>
 import cats.data.NonEmptyList
-import cats.effect.{Effect, LiftIO}
+import cats.effect.Effect
 import cats.effect.concurrent.Ref
 import cats.implicits._
 
@@ -52,6 +52,7 @@ object SinkBuilder {
       xa: Transactor[F],
       writeMode: JWriteMode,
       schema: String,
+      retry: ConnectionIO ~> ConnectionIO,
       logger: Logger)(
       args: UpsertSink.Args[SQLServerType])
       : (RenderConfig[CharSequence], ∀[Consume[F, DataEvent[CharSequence, *], *]]) = {
@@ -64,6 +65,7 @@ object SinkBuilder {
       Some(args.idColumn),
       args.columns,
       Some(args.idColumn),
+      retry,
       logger))
     (renderConfig(args.columns), consume)
   }
@@ -72,6 +74,7 @@ object SinkBuilder {
       xa: Transactor[F],
       writeMode: JWriteMode,
       schema: String,
+      retry: ConnectionIO ~> ConnectionIO,
       logger: Logger)(
       args: AppendSink.Args[SQLServerType])
       : (RenderConfig[CharSequence], ∀[Consume[F, AppendEvent[CharSequence, *], *]]) = {
@@ -84,6 +87,7 @@ object SinkBuilder {
       args.pushColumns.primary,
       args.columns,
       None,
+      retry,
       logger))
     (renderConfig(args.columns), consume)
   }
@@ -97,10 +101,9 @@ object SinkBuilder {
       idColumn: Option[Column[SQLServerType]],
       inputColumns: NonEmptyList[Column[SQLServerType]],
       filterColumn: Option[Column[SQLServerType]],
+      retry: ConnectionIO ~> ConnectionIO,
       logger: Logger)
       : Pipe[F, DataEvent[CharSequence, OffsetKey.Actual[A]], OffsetKey.Actual[A]] = { events =>
-
-    val toConnectionIO = Effect.toIOK[F] andThen LiftIO.liftK[ConnectionIO]
 
     val (actualId, actualColumns0) = idColumn match {
       case Some(c) => ensureIndexableIdColumn(c, inputColumns).leftMap(Some(_))
@@ -147,11 +150,20 @@ object SinkBuilder {
       Effect[F].delay(logger.trace(msg))
 
     val result = for {
-      flow <- Stream.resource(TempTableFlow(xa, logger, jwriteMode, path, schema, hyColumns, actualId, actualFilter))
+      flow <- Stream.resource(TempTableFlow(
+        xa,
+        logger,
+        jwriteMode,
+        path,
+        schema,
+        hyColumns,
+        actualId,
+        actualFilter,
+        retry))
       refMode <- Stream.eval(Ref.in[F, ConnectionIO, QWriteMode](writeMode))
       offset <- {
         events.evalTap(logEvents)
-          .translate(toConnectionIO)
+          .translate(toConnectionIO[F])
           .through(handleEvents(refMode, flow))
           .unNone
           .translate(λ[ConnectionIO ~> F](_.transact(xa)))
