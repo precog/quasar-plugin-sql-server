@@ -18,16 +18,18 @@ package quasar.plugin.sqlserver.destination
 
 import slamdata.Predef._
 
-import quasar.api.Column
-import quasar.api.resource.ResourcePath
-import quasar.connector.{MonadResourceErr, ResourceError}
+import quasar.api.{Column, ColumnType}
+import quasar.connector.{MonadResourceErr, ResourceError, IdBatch}
+import quasar.connector.destination.{WriteMode => QWriteMode}
 import quasar.lib.jdbc.{Ident, Slf4sLogHandler}
 import quasar.lib.jdbc.destination.WriteMode
+import quasar.lib.jdbc.destination.flow.{Flow, FlowArgs}
 import quasar.plugin.sqlserver._
 
-import cats.{Alternative, ~>}
+import cats.Alternative
 import cats.data.NonEmptyList
 import cats.effect._
+import cats.effect.concurrent.Ref
 import cats.implicits._
 
 import doobie._
@@ -44,6 +46,7 @@ sealed trait TempTableFlow {
   def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit]
   def replace: ConnectionIO[Unit]
   def append: ConnectionIO[Unit]
+  def delete(ids: IdBatch): ConnectionIO[Unit]
 }
 
 object TempTableFlow {
@@ -51,13 +54,9 @@ object TempTableFlow {
       xa: Transactor[F],
       logger: Logger,
       writeMode: WriteMode,
-      path: ResourcePath,
       schema: String,
-      columns: NonEmptyList[(HI, SQLServerType)],
-      idColumn: Option[Column[_]],
-      filterColumn: Option[Column[_]],
-      retry: ConnectionIO ~> ConnectionIO)
-      : Resource[F, TempTableFlow] = {
+      args: FlowArgs[SQLServerType])
+      : Resource[F, Flow[CharSequence]] = {
 
     val log = Slf4sLogHandler(logger)
 
@@ -69,7 +68,7 @@ object TempTableFlow {
         case WriteMode.Create => existing.transact(xa) flatMap { exists =>
           MonadResourceErr[F].raiseError(
             ResourceError.accessDenied(
-              path,
+              args.path,
               "Create mode is set but the table exists already".some,
               none)).whenA(exists)
         }
@@ -77,27 +76,57 @@ object TempTableFlow {
           ().pure[F]
       }
     }
+
+    val columns = {
+      val (actualId, actualColumns0) = args.idColumn match {
+        case Some(c) => ensureIndexableIdColumn(c, args.columns).leftMap(Some(_))
+        case None => (None, args.columns)
+      }
+
+      val (actualFilter, actualColumns) = args.filterColumn match {
+        case Some(c) => ensureIndexableIdColumn(c, actualColumns0).leftMap(Some(_))
+        case None => (None, actualColumns0)
+      }
+
+      hygienicColumns(actualColumns)
+    }
+
     // No retries in temp table init and checkWriteMode, since there is nothing yet inserted
-    val acquire: F[(TempTable, TempTableFlow)] = for {
-      (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, path)
+    val acquire: F[(TempTable, Flow[CharSequence])] = for {
+      (objFragment, unsafeName, unsafeSchema) <- pathFragment[F](schema, args.path)
       _ <- checkWriteMode(unsafeName, unsafeSchema)
-      tempTable = TempTable(log, writeMode, unsafeName, unsafeSchema, objFragment, columns, idColumn, filterColumn)
+      tempTable = TempTable(
+        log,
+        writeMode,
+        unsafeName,
+        unsafeSchema,
+        objFragment,
+        columns,
+        args.idColumn,
+        args.filterColumn)
       _ <- {
         tempTable.drop >>
         tempTable.create >>
         commit
       }.transact(xa)
+      refMode <- Ref.in[F, ConnectionIO, QWriteMode](args.writeMode)
     } yield {
-      val flow = new TempTableFlow {
-        def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit] = retry {
+      val flow = new Flow[CharSequence] {
+        def delete(ids: IdBatch): ConnectionIO[Unit] =
+          ().pure[ConnectionIO]
+
+        def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit] =
           tempTable.ingest(chunk) >> commit
+
+        def replace = refMode.get flatMap {
+          case QWriteMode.Replace =>
+            tempTable.persist >> commit >> refMode.set(QWriteMode.Append)
+          case QWriteMode.Append =>
+            append
         }
-        def replace = retry {
-          tempTable.persist >> commit
-        }
-        def append = retry {
+
+        def append =
           tempTable.append >> commit
-        }
       }
       (tempTable, flow)
     }
@@ -106,11 +135,27 @@ object TempTableFlow {
     // subsequent pushes doesn't seem good idea
     // 2. Everything failed, we already tried to apply temp table for 10 minutes and had no success, other 10 minutes
     // to just release is wasting time.
-    val release: ((TempTable, TempTableFlow)) => F[Unit] = { case (tempTable, _) =>
+    val release: ((TempTable, _)) => F[Unit] = { case (tempTable, _) =>
       (tempTable.drop >> commit).transact(xa)
     }
     Resource.make(acquire)(release).map(_._2)
   }
+
+  /** Ensures the provided identity column is suitable for indexing by SQL Server,
+    * adjusting the type to one that is compatible and indexable if not.
+    */
+  private def ensureIndexableIdColumn(
+      id: Column[SQLServerType],
+      columns: NonEmptyList[Column[SQLServerType]])
+      : (Column[SQLServerType], NonEmptyList[Column[SQLServerType]]) =
+    Typer.inferScalar(id.tpe)
+      .collect {
+        case t @ ColumnType.String if id.tpe.some === Typer.preferred(t) =>
+          val indexableId = id.as(SQLServerType.VARCHAR(MaxIndexableVarchars))
+          val cols = columns.map(c => if (c === id) indexableId else c)
+          (indexableId, cols)
+      }
+      .getOrElse((id, columns))
 
   private trait TempTable {
     def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit]
