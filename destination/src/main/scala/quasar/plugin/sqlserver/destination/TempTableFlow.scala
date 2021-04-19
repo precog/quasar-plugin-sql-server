@@ -42,13 +42,6 @@ import java.lang.CharSequence
 
 import org.slf4s.Logger
 
-sealed trait TempTableFlow {
-  def ingest(chunk: Chunk[CharSequence]): ConnectionIO[Unit]
-  def replace: ConnectionIO[Unit]
-  def append: ConnectionIO[Unit]
-  def delete(ids: IdBatch): ConnectionIO[Unit]
-}
-
 object TempTableFlow {
   def apply[F[_]: Sync: MonadResourceErr](
       xa: Transactor[F],
