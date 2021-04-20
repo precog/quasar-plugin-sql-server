@@ -73,7 +73,7 @@ object SQLServerDestinationSpec extends TestHarness with Logging {
   def quote(chars: String): String = s"'$chars'"
 
   def delim(lines: String*): Stream[IO, CharSequence] =
-      // We need to unchunk to be sure that multichunk inputs handled correctly
+    // We need to unchunk to be sure that multichunk inputs handled correctly
     Stream.emits(lines).unchunk
       //.intersperse("\r\n")
       //.through(text.utf8Encode) // FIXME utf8encode?
