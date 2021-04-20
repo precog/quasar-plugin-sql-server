@@ -52,8 +52,7 @@ private[destination] object CsvCreateSink {
 
     (renderConfig(columns), in => for {
       flow <- Stream.resource(TempTableFlow(xa, logger, writeMode, path, schema, hyCols, None, None, retry))
-      _ <- in.chunks.evalMap(x => flow.ingest(x).transact(xa))
-      _ <- Stream.eval(flow.replace.transact(xa))
+      _ <- in.chunks.evalMap(x => flow.ingest(x).transact(xa)) ++ Stream.eval(flow.replace.transact(xa))
     } yield ())
   }
 }
