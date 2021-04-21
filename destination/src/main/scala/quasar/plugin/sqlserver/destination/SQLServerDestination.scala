@@ -18,14 +18,9 @@ package quasar.plugin.sqlserver.destination
 
 import scala._, Predef._
 
-import cats.{~>, MonadError}
-import cats.data.NonEmptyList
-import cats.effect.{ConcurrentEffect, Timer, Effect}
-import cats.implicits._
+import cats.effect.{ConcurrentEffect, Timer, Resource}
 
-import doobie.{ConnectionIO, Transactor}
-import doobie.free.connection.rollback
-import doobie.implicits._
+import doobie.Transactor
 
 import monocle.Prism
 
@@ -34,9 +29,11 @@ import org.slf4s.Logger
 import quasar.api.{ColumnType, Label}
 import quasar.api.push.TypeCoercion
 import quasar.connector.MonadResourceErr
-import quasar.connector.destination.{Constructor, Destination, ResultSink}
+import quasar.connector.destination.{Constructor, Destination}
 import quasar.lib.jdbc.destination.WriteMode
+import quasar.lib.jdbc.destination.flow.{FlowSinks, FlowArgs, Flow, Retry}
 
+import java.lang.CharSequence
 import scala.concurrent.duration.FiniteDuration
 
 private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: MonadResourceErr: Timer](
@@ -46,19 +43,24 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
     maxReattempts: Int,
     retryTimeout: FiniteDuration,
     logger: Logger)
-    extends Destination[F] {
+    extends Destination[F] with FlowSinks[F, SQLServerType, CharSequence] {
 
   type Type = SQLServerType
   type TypeId = SQLServerTypeId
 
   val destinationType = SQLServerDestinationModule.destinationType
 
-  val retry = SQLServerDestination.retryN(maxReattempts, retryTimeout, 0)
+  def render(args: FlowArgs[SQLServerType]) = renderConfig(args.columns)
 
-  val sinks = NonEmptyList.of(
-    ResultSink.create(CsvCreateSink(writeMode, xa, retry, logger, schema)),
-    ResultSink.upsert(SinkBuilder.upsert(xa, writeMode, schema, retry, logger)),
-    ResultSink.append(SinkBuilder.append(xa, writeMode, schema, retry, logger)))
+  def flowResource(args: FlowArgs[SQLServerType]): Resource[F, Flow[CharSequence]] =
+    TempTableFlow(xa, logger, writeMode, schema, args) map { (f: Flow[CharSequence]) =>
+      f.mapK(Retry[F](maxReattempts, retryTimeout))
+    }
+
+  val flowTransactor = xa
+  val flowLogger = logger
+  val sinks =
+    flowSinks
 
   val typeIdOrdinal: Prism[Int, TypeId] =
     Prism(SQLServerDestination.OrdinalMap.get(_))(_.ordinal)
@@ -74,18 +76,6 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 }
 
 object SQLServerDestination {
-  private def retryN[F[_]: Effect: Timer](maxN: Int, timeout: FiniteDuration, n: Int): ConnectionIO ~> ConnectionIO =
-    λ[ConnectionIO ~> ConnectionIO] { action =>
-      action.attempt flatMap {
-        case Right(a) => a.pure[ConnectionIO]
-        case Left(e) if n < maxN =>
-          rollback >>
-          toConnectionIO[F].apply(Timer[F].sleep(timeout)) >>
-          retryN[F](maxN, timeout, n + 1).apply(action)
-        case Left(e) => MonadError[ConnectionIO, Throwable].raiseError(e)
-      }
-    }
-
   val OrdinalMap: Map[Int, SQLServerTypeId] =
     SQLServerTypeId.allIds
       .toList
