@@ -231,10 +231,11 @@ object TempTableFlow {
           }
           val allColumns = colFragments.intercalate(fr",")
           val toInsert = Fragments.parentheses(allColumns)
-          (fr"INSERT INTO" ++
+          val fragment = fr"INSERT INTO" ++
             tableFragment ++ fr0" " ++ toInsert ++ fr0" " ++
-            fr"SELECT" ++ toInsert ++ fr" FROM" ++
-            tempFragment)
+            fr"SELECT" ++ allColumns ++ fr" FROM" ++
+            tempFragment
+          fragment
             .updateWithLogHandler(log)
             .run
             .void
