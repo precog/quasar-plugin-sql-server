@@ -225,14 +225,21 @@ object TempTableFlow {
             }
           }
 
-        private def insertInto: ConnectionIO[Unit] =
-          (fr"INSERT INTO" ++
-            tableFragment ++ fr0" " ++
-            fr"SELECT * FROM" ++
-            tempFragment)
+        private def insertInto: ConnectionIO[Unit] = {
+          val colFragments = columns.map { case (hi, _) =>
+            Fragment.const0(hi.forSqlName)
+          }
+          val allColumns = colFragments.intercalate(fr",")
+          val toInsert = Fragments.parentheses(allColumns)
+          val fragment = fr"INSERT INTO" ++
+            tableFragment ++ fr0" " ++ toInsert ++ fr0" " ++
+            fr"SELECT" ++ allColumns ++ fr" FROM" ++
+            tempFragment
+          fragment
             .updateWithLogHandler(log)
             .run
             .void
+        }
 
         private def rename: ConnectionIO[Unit] =
           (fr0"EXEC SP_RENAME '" ++
