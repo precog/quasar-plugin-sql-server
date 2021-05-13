@@ -26,7 +26,6 @@ import quasar.lib.jdbc.destination.WriteMode
 import quasar.lib.jdbc.destination.flow.{Flow, FlowArgs}
 import quasar.plugin.sqlserver._
 
-import cats.Alternative
 import cats.data.NonEmptyList
 import cats.effect._
 import cats.effect.concurrent.Ref
@@ -205,12 +204,7 @@ object TempTableFlow {
               ().pure[ConnectionIO]
             }
           }) >>
-          filterColumn.traverse_({ (col: Column[_]) =>
-            val colFragment = Fragments.parentheses {
-              Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName)
-            }
-            createIndex(log)(tempFragment, hyName.unsafeForSqlName, colFragment, indexName(unsafeName))
-          })
+          filterColumn.traverse_(index(tempFragment, _))
         }
 
         private def truncate: ConnectionIO[Unit] =
@@ -262,6 +256,13 @@ object TempTableFlow {
           fragment.updateWithLogHandler(log).run.void
         }
 
+        private def index(tbl: Fragment, col: Column[_]): ConnectionIO[Unit] = {
+          val colFragment = Fragments.parentheses {
+            Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName)
+          }
+          createIndex(log)(tbl, unsafeName, colFragment, indexName(unsafeName)).void
+        }
+
         def append: ConnectionIO[Unit] = {
           val mbFilter = filterColumn traverse_ { col => filterTempIds(col) }
           mbFilter >>
@@ -270,36 +271,36 @@ object TempTableFlow {
         }
 
         def persist: ConnectionIO[Unit] = {
-          val mbCreateIndex =
-            (Alternative[Option].guard(idColumn.map(_.name) =!= filterColumn.map(_.name)) *> idColumn) traverse_ { col =>
-              val colFragment = Fragments.parentheses {
-                Fragment.const(SQLServerHygiene.hygienicIdent(Ident(col.name)).forSqlName)
-              }
-              createIndex(log)(tableFragment, unsafeName, colFragment, indexName(unsafeName))
-            }
-          val prepare = writeMode match {
+          val indexColumn =
+            if (idColumn.map(_.name) =!= filterColumn.map(_.name))
+              idColumn
+            else
+              none[Column[_]]
+
+          writeMode match {
             case WriteMode.Create =>
               createTable(log)(tableFragment, columns) >>
-              mbCreateIndex >>
+              idColumn.traverse_(index(tableFragment, _)) >>
               insertInto >>
               truncate
             case WriteMode.Replace =>
               dropTableIfExists(log)(tableFragment) >>
               rename >>
               // We don't remove temp table in `persist`, it's handled in Resource instead.
-              create
+              create >>
+              indexColumn.traverse_(index(tableFragment, _))
             case WriteMode.Truncate =>
               // This is `insertInto` instead of `renameTable` because user might want to preserve indices and so on
               truncateTable(log)(tableFragment, unsafeName, unsafeSchema, columns)  >>
+              idColumn.traverse_(index(tableFragment, _)) >>
               insertInto >>
               truncate
             case WriteMode.Append =>
               createTableIfNotExists(log)(tableFragment, unsafeName, unsafeSchema, columns) >>
+              idColumn.traverse_(index(tableFragment, _)) >>
               insertInto >>
               truncate
           }
-
-          prepare >> mbCreateIndex
         }
       }
     }
