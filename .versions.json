@@ -1,4 +1,4 @@
 {
-  "precog-quasar": "205.1.0",
-  "precog-quasar-lib-jdbc": "0.35.5"
+  "precog-quasar": "206.0.0",
+  "precog-quasar-lib-jdbc": "0.36.0"
 }
