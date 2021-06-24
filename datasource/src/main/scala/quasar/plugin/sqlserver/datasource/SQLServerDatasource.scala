@@ -60,7 +60,7 @@ private[datasource] object SQLServerDatasource {
     val loader =
       JdbcLoader(xa, discovery, SQLServerHygiene) {
         RValueLoader[HI](Slf4sLogHandler(log), DefaultResultChunkSize, SQLServerRValueColumn)
-          .compose(maskInterpreter.andThen(Resource.liftF(_)))
+          .compose(maskInterpreter.andThen(Resource.eval(_)))
       }
 
     JdbcDatasource(
