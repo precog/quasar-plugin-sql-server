@@ -378,7 +378,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
 
   private def dest(cfg: Json): Resource[IO, Destination[IO]] =
     Mod.destination[IO](cfg, _ => _ => Stream.empty) flatMap {
-      case Left(err) => Resource.liftF(IO.raiseError(new RuntimeException(err.shows)))
+      case Left(err) => Resource.eval(IO.raiseError(new RuntimeException(err.shows)))
       case Right(d) => d.pure[Resource[IO, *]]
     }
 
