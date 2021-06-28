@@ -22,7 +22,7 @@ import quasar.RateLimiting
 import quasar.api.datasource.{DatasourceType, DatasourceError}
 import quasar.api.datasource.DatasourceError.ConfigurationError
 import quasar.connector.{ByteStore, ExternalCredentials, MonadResourceErr}
-import quasar.connector.datasource.{LightweightDatasourceModule, Reconfiguration}
+import quasar.connector.datasource.{DatasourceModule, Reconfiguration}
 import quasar.lib.jdbc.{JdbcDiscovery, JdbcDriverConfig, TableType, TransactorConfig}
 import quasar.lib.jdbc.datasource.JdbcDatasourceModule
 
@@ -58,7 +58,7 @@ object SQLServerDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       byteStore: ByteStore[F],
       getAuth: UUID => F[Option[ExternalCredentials[F]]],
       log: Logger)
-      : Resource[F, Either[SQLServerDatasourceModule.InitError, LightweightDatasourceModule.DS[F]]] = {
+      : Resource[F, Either[SQLServerDatasourceModule.InitError, DatasourceModule.DS[F]]] = {
 
     val discovery = JdbcDiscovery(discoverableTableTypes(log))
 
