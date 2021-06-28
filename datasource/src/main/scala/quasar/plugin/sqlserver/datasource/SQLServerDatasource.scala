@@ -31,7 +31,7 @@ import doobie._
 import doobie.implicits._
 
 import quasar.connector.MonadResourceErr
-import quasar.connector.datasource.{LightweightDatasourceModule, Loader}
+import quasar.connector.datasource.{DatasourceModule, Loader}
 import quasar.lib.jdbc._
 import quasar.lib.jdbc.datasource._
 
@@ -44,7 +44,7 @@ private[datasource] object SQLServerDatasource {
       xa: Transactor[F],
       discovery: JdbcDiscovery,
       log: Logger)
-      : LightweightDatasourceModule.DS[F] = {
+      : DatasourceModule.DS[F] = {
 
     val maskInterpreter =
       MaskInterpreter(SQLServerHygiene) { (table, schema) =>

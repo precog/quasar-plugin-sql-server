@@ -36,7 +36,7 @@ import quasar.ScalarStages
 import quasar.api.resource.ResourcePath
 import quasar.common.data.RValue
 import quasar.connector.{QueryResult, ResultData}
-import quasar.connector.datasource.LightweightDatasourceModule
+import quasar.connector.datasource.DatasourceModule
 import quasar.lib.jdbc.JdbcDiscovery
 import quasar.qscript.InterpretedRead
 
@@ -45,7 +45,7 @@ object SQLServerDatasourceSpec extends TestHarness with Logging {
 
   sequential // FIXME why don't these run in parallel
 
-  type DS = LightweightDatasourceModule.DS[IO]
+  type DS = DatasourceModule.DS[IO]
 
   def harnessed(jdbcUrl: String = TestUrl(Some(TestDb)))
       : Resource[IO, (Transactor[IO], DS, ResourcePath, String)] =
