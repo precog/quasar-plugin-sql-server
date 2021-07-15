@@ -377,7 +377,7 @@ object SQLServerDestinationSeekSinksSpec extends EffectfulQSpec[IO] with BeforeA
     IO(s"mssqltest${Random.alphanumeric.take(6).mkString}")
 
   private def dest(cfg: Json): Resource[IO, Destination[IO]] =
-    Mod.destination[IO](cfg, _ => _ => Stream.empty) flatMap {
+    Mod.destination[IO](cfg, _ => _ => Stream.empty, _ => None.pure[IO]) flatMap {
       case Left(err) => Resource.eval(IO.raiseError(new RuntimeException(err.shows)))
       case Right(d) => d.pure[Resource[IO, *]]
     }
