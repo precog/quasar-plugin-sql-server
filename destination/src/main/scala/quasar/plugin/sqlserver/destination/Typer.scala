@@ -97,12 +97,12 @@ object Typer {
 
       ColumnType.String ->
         satisfied(
+          VARCHAR,
           TEXT,
           NTEXT,
           NCHAR,
           NVARCHAR,
-          CHAR,
-          VARCHAR)
+          CHAR)
     ).withDefaultValue(TypeCoercion.Unsatisfied(Nil, None))
 
   private def maximal[A](formal: Formal[A]): Option[A] = {
