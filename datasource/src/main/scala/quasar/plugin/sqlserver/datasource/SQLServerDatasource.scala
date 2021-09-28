@@ -22,7 +22,7 @@ import scala._, Predef._
 import scala.collection.immutable.Map
 import java.lang.Throwable
 
-import cats.Defer
+import cats.{Defer, Id}
 import cats.data.NonEmptyList
 import cats.effect.{Bracket, Resource}
 import cats.implicits._
@@ -30,12 +30,16 @@ import cats.implicits._
 import doobie._
 import doobie.implicits._
 
-import quasar.connector.MonadResourceErr
+import quasar.api.DataPathSegment
+import quasar.api.push.InternalKey
+import quasar.connector.{MonadResourceErr, Offset}
 import quasar.connector.datasource.{DatasourceModule, Loader}
 import quasar.lib.jdbc._
 import quasar.lib.jdbc.datasource._
 
 import org.slf4s.Logger
+
+import skolems.∃
 
 private[datasource] object SQLServerDatasource {
   val DefaultResultChunkSize: Int = 4096
@@ -59,8 +63,12 @@ private[datasource] object SQLServerDatasource {
 
     val loader =
       JdbcLoader(xa, discovery, SQLServerHygiene) {
-        RValueLoader[HI](Slf4sLogHandler(log), DefaultResultChunkSize, SQLServerRValueColumn)
-          .compose(maskInterpreter.andThen(Resource.eval(_)))
+        RValueLoader.seek[HI](
+          Slf4sLogHandler(log),
+          DefaultResultChunkSize,
+          SQLServerRValueColumn,
+          offsetFragment)
+        .compose(maskInterpreter.andThen(Resource.eval(_)))
       }
 
     JdbcDatasource(
@@ -69,4 +77,50 @@ private[datasource] object SQLServerDatasource {
       SQLServerDatasourceModule.kind,
       NonEmptyList.one(Loader.Batch(loader)))
   }
+
+  private def offsetFragment(offset: Offset): Either[String, Fragment] =
+    for {
+      ioffset <- internalize(offset)
+      cfr <- columnFragment(ioffset)
+      result <- makeOffset(cfr, ioffset.value)
+    } yield result
+
+  private def internalize(offset: Offset): Either[String, Offset.Internal] = offset match {
+    case _: Offset.External =>
+      Left("SQL Server datasource supports only internal offsets")
+    case i: Offset.Internal =>
+      i.asRight[String]
+  }
+
+  private def columnFragment(offset: Offset.Internal): Either[String, Fragment] =
+    offset.path match {
+      case NonEmptyList(DataPathSegment.Field(s), List()) =>
+        Fragment.const(SQLServerHygiene.hygienicIdent(Ident(s)).forSql).asRight[String]
+      case _ =>
+        Left("Incorrect offset path")
+    }
+
+  private def makeOffset(colFr: Fragment, key: ∃[InternalKey.Actual]): Either[String, Fragment] = {
+    val actual: InternalKey[Id, _] = key.value
+
+    val actualFragment = actual match {
+      case InternalKey.RealKey(k) =>
+        Right(Fragment.const(k.toString))
+      case InternalKey.StringKey(s) =>
+        Right(fr0"'" ++ Fragment.const0(s.replace("'", "''")) ++ fr0"'")
+      case InternalKey.DateTimeKey(d) =>
+        Right(fr0"'" ++ Fragment.const0(d.toString) ++ fr0"'")
+      case InternalKey.LocalDateTimeKey(d) =>
+        Right(fr0"'" ++ Fragment.const0(d.toString) ++ fr0"'")
+      case InternalKey.LocalDateKey(d) =>
+        Right(fr0"'" ++ Fragment.const0(d.toString) ++ fr0"'")
+      case InternalKey.DateKey(_) =>
+        // Note that according to SQLServerRValueColumn and Mapping this is impossible
+        Left("SQL Server doesn't support OffsetDate offsets")
+    }
+    actualFragment map { afr =>
+      fr"$colFr >= $afr"
+    }
+  }
+
 }
