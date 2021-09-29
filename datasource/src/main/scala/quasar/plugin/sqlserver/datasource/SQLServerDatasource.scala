@@ -21,6 +21,7 @@ import quasar.plugin.sqlserver.{HI, SQLServerHygiene}
 import scala._, Predef._
 import scala.collection.immutable.Map
 import java.lang.Throwable
+import java.time.format.DateTimeFormatter
 
 import cats.{Defer, Id}
 import cats.data.NonEmptyList
@@ -100,6 +101,10 @@ private[datasource] object SQLServerDatasource {
         Left("Incorrect offset path")
     }
 
+  private def LocalFormatter = DateTimeFormatter.ofPattern("YYYY-MM-dd HH:mm:ss.SSSSSS")
+  private def Formatter = DateTimeFormatter.ofPattern("YYYY-MM-dd HH:mm:ss.SSSSSS xxxxx")
+  private def DateFormatter = DateTimeFormatter.ofPattern("YYYY-MM-dd")
+
   private def makeOffset(colFr: Fragment, key: ∃[InternalKey.Actual]): Either[String, Fragment] = {
     val actual: InternalKey[Id, _] = key.value
 
@@ -109,11 +114,23 @@ private[datasource] object SQLServerDatasource {
       case InternalKey.StringKey(s) =>
         Right(fr0"'" ++ Fragment.const0(s.replace("'", "''")) ++ fr0"'")
       case InternalKey.DateTimeKey(d) =>
-        Right(fr0"'" ++ Fragment.const0(d.toString) ++ fr0"'")
+        Right {
+          fr0"CAST('" ++
+          Fragment.const0(Formatter.format(d)) ++
+          fr0"' as datetimeoffset)"
+        }
       case InternalKey.LocalDateTimeKey(d) =>
-        Right(fr0"'" ++ Fragment.const0(d.toString) ++ fr0"'")
+        Right {
+          fr0"CAST('" ++
+          Fragment.const0(LocalFormatter.format(d)) ++
+          fr0"' as datetime2)"
+        }
       case InternalKey.LocalDateKey(d) =>
-        Right(fr0"'" ++ Fragment.const0(d.toString) ++ fr0"'")
+        Right {
+          fr0"CAST('" ++
+          Fragment.const0(DateFormatter.format(d)) ++
+          fr0"' as date)"
+        }
       case InternalKey.DateKey(_) =>
         // Note that according to SQLServerRValueColumn and Mapping this is impossible
         Left("SQL Server doesn't support OffsetDate offsets")
