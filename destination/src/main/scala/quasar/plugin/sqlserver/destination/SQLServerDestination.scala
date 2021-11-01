@@ -70,6 +70,13 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
   def coerce(tpe: ColumnType.Scalar): TypeCoercion[TypeId] =
     Typer.coerce(tpe)
+        
+  override def defaultSelected(tpe: ColumnType.Scalar): Option[SelectedType] = tpe match {
+    case ColumnType.String =>
+      SelectedType(TypeIndex(VARCHAR.ordinal), List(∃(Actual.integer(256)))).some
+    case _ =>
+      none[SelectedType]
+  }
 
   def construct(id: TypeId): Either[Type, Constructor[Type]] =
     Typer.construct(id)
