@@ -18,7 +18,6 @@ package quasar.plugin.sqlserver.destination
 
 import scala._, Predef._
 
-import cats.data.NonEmptyList
 import cats.effect.{ConcurrentEffect, Timer, Resource}
 
 import doobie.Transactor
@@ -28,12 +27,15 @@ import monocle.Prism
 import org.slf4s.Logger
 
 import quasar.api.{ColumnType, Label}
+import quasar.api.push.param.Actual
 import quasar.api.push.{TypeCoercion, SelectedType, TypeIndex}
 import quasar.api.push.TypeCoercion
 import quasar.connector.MonadResourceErr
 import quasar.connector.destination.{Constructor, Destination}
 import quasar.lib.jdbc.destination.WriteMode
 import quasar.lib.jdbc.destination.flow.{FlowSinks, FlowArgs, Flow, Retry}
+
+import skolems.∃
 
 import java.lang.CharSequence
 import scala.concurrent.duration.FiniteDuration
