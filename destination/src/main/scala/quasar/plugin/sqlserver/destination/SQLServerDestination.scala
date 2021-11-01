@@ -27,6 +27,7 @@ import monocle.Prism
 import org.slf4s.Logger
 
 import quasar.api.{ColumnType, Label}
+import quasar.api.push.{TypeCoercion, SelectedType, TypeIndex}
 import quasar.api.push.TypeCoercion
 import quasar.connector.MonadResourceErr
 import quasar.connector.destination.{Constructor, Destination}
