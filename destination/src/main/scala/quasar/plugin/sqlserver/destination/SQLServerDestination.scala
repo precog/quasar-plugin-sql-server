@@ -19,6 +19,7 @@ package quasar.plugin.sqlserver.destination
 import scala._, Predef._
 
 import cats.effect.{ConcurrentEffect, Timer, Resource}
+import cats.implicits._
 
 import doobie.Transactor
 
@@ -27,11 +28,15 @@ import monocle.Prism
 import org.slf4s.Logger
 
 import quasar.api.{ColumnType, Label}
+import quasar.api.push.param.Actual
+import quasar.api.push.{TypeCoercion, SelectedType, TypeIndex}
 import quasar.api.push.TypeCoercion
 import quasar.connector.MonadResourceErr
 import quasar.connector.destination.{Constructor, Destination}
 import quasar.lib.jdbc.destination.WriteMode
 import quasar.lib.jdbc.destination.flow.{FlowSinks, FlowArgs, Flow, Retry}
+
+import skolems.∃
 
 import java.lang.CharSequence
 import scala.concurrent.duration.FiniteDuration
@@ -70,6 +75,13 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
 
   def coerce(tpe: ColumnType.Scalar): TypeCoercion[TypeId] =
     Typer.coerce(tpe)
+        
+  override def defaultSelected(tpe: ColumnType.Scalar): Option[SelectedType] = tpe match {
+    case ColumnType.String =>
+      SelectedType(TypeIndex(SQLServerType.VARCHAR.ordinal), List(∃(Actual.integer(256)))).some
+    case _ =>
+      none[SelectedType]
+  }
 
   def construct(id: TypeId): Either[Type, Constructor[Type]] =
     Typer.construct(id)
