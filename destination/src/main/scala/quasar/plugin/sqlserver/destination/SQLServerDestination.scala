@@ -19,6 +19,7 @@ package quasar.plugin.sqlserver.destination
 import scala._, Predef._
 
 import cats.effect.{ConcurrentEffect, Timer, Resource}
+import cats.implicits._
 
 import doobie.Transactor
 
