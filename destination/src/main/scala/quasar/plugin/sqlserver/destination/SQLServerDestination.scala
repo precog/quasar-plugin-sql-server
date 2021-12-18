@@ -78,7 +78,7 @@ private[destination] final class SQLServerDestination[F[_]: ConcurrentEffect: Mo
         
   override def defaultSelected(tpe: ColumnType.Scalar): Option[SelectedType] = tpe match {
     case ColumnType.String =>
-      SelectedType(TypeIndex(SQLServerType.VARCHAR.ordinal), List(∃(Actual.integer(256)))).some
+      SelectedType(TypeIndex(SQLServerType.VARCHAR.ordinal), List(∃(Actual.integer(512)))).some
     case _ =>
       none[SelectedType]
   }
