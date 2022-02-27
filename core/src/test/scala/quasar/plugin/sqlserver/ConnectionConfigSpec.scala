@@ -26,8 +26,6 @@ import org.specs2.mutable.Specification
 // "jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=TestDB"
 object ConnectionConfigSpec extends Specification {
 
-  import ConnectionConfig.Redacted
-
   "serialization" >> {
     "valid config" >> {
       val js = """
