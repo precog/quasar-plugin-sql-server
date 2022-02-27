@@ -24,7 +24,7 @@ import argonaut._, Argonaut._
 
 final case class DatasourceConfig(connectionConfig: ConnectionConfig) {
   def isSensitive: Boolean =
-    false
+    connectionConfig.isSensitive
 
   def mergeSensitive(other: DatasourceConfig): DatasourceConfig =
     copy(connectionConfig = connectionConfig.mergeSensitive(other.connectionConfig))
