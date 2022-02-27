@@ -30,7 +30,7 @@ final case class DatasourceConfig(connectionConfig: ConnectionConfig) {
     copy(connectionConfig = connectionConfig.mergeSensitive(other.connectionConfig))
 
   def sanitized: DatasourceConfig =
-    copy(connectionConfig = connectionConfig.sanitized)
+    copy(connectionConfig = connectionConfig)
 }
 
 object DatasourceConfig {

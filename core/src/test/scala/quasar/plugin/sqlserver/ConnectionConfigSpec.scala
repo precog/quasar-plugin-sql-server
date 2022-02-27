@@ -26,8 +26,6 @@ import org.specs2.mutable.Specification
 // "jdbc:sqlserver://localhost:1433;user=SA;password=<YourStrong@Passw0rd>;database=TestDB"
 object ConnectionConfigSpec extends Specification {
 
-  import ConnectionConfig.Redacted
-
   "serialization" >> {
     "valid config" >> {
       val js = """
@@ -124,38 +122,6 @@ object ConnectionConfigSpec extends Specification {
       """
 
       js.decodeEither[ConnectionConfig] must beLeft(contain("Malformed driver parameter"))
-    }
-  }
-
-  "sanitization" >> {
-    "sanitizes password parameters" >> {
-      val cc =
-        ConnectionConfig(
-          "jdbc:sqlserver://localhost:1433",
-          List(
-            DriverParameter("clientKeyPassword", "secret1"),
-            DriverParameter("gsscredential", "secret2"),
-            DriverParameter("keyStoreSecret", "secret3"),
-            DriverParameter("password", "secret4"),
-            DriverParameter("trustStorePassword", "secret5"),
-            DriverParameter("userName", "bob")),
-          None,
-          None)
-
-      val expected =
-        ConnectionConfig(
-          "jdbc:sqlserver://localhost:1433",
-          List(
-            DriverParameter("clientKeyPassword", Redacted),
-            DriverParameter("gsscredential", Redacted),
-            DriverParameter("keyStoreSecret", Redacted),
-            DriverParameter("password", Redacted),
-            DriverParameter("trustStorePassword", Redacted),
-            DriverParameter("userName", "bob")),
-          None,
-          None)
-
-      cc.sanitized must_=== expected
     }
   }
 
